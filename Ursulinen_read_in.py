@@ -254,7 +254,7 @@ class Flightdata():
                 flight_movement_info.loc[dict(flightdata = x)] = flight_movement_info.sel(flightdata = x).astype("datetime64[ns]")
             except:
                 pass
-        print("Extracted relevant information out of flight data response")
+
 
         return flight_movement_info
     def get_flightdata(self):
@@ -269,7 +269,10 @@ class Flightdata():
         departures = departures.sortby(departures.scheduledtime)
 
         flightdata = {"arrivals" : arrivals, "departures": departures}
+        print("... got new flight data.")
         return flightdata
+
+
 
 class Weatherdata(Measurement):
     def __init__(self):
@@ -601,6 +604,13 @@ class MainWindow(QMainWindow):
             print("...save Microphone")
 
             #update flight data and save it
+            self.flight.data["arrivals"]["values"].to_netcdf(self.save_file_current_path, group="flight_arrivals_times", engine="netcdf4", mode="a")
+            self.flight.data["arrivals"]["strings"].to_netcdf(self.save_file_current_path, group="flight_arrivals_info", engine="netcdf4", mode="a")
+            self.flight.data["departures"]["values"].to_netcdf(self.save_file_current_path, group="flight_departures_times", engine="netcdf4",mode="a")
+            self.flight.data["departures"]["strings"].to_netcdf(self.save_file_current_path, group="flight_departures_info", engine="netcdf4",mode="a")
+            print("..saved flight data")
+
+            self.flight.data = self.flight.get_flightdata()
 
         # this happens at the end of the file
         if self.part.number_downloads_onefile % self.part.save_newfile_ndatapoints == 0:
