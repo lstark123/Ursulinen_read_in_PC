@@ -256,7 +256,6 @@ class Flightdata():
             dims=["scheduledtime", "flightdata"])
 
         flight_movement_info = {"strings":strings,"values":values}
-        print(flight_movement_info)
         print("Extracted relevant information out of flight data response")
 
         return flight_movement_info
@@ -605,6 +604,8 @@ class MainWindow(QMainWindow):
             self.mic.data.to_netcdf(self.save_file_current_path, group=self.mic.data.attrs["Measurement"], engine="netcdf4", mode="a")
             print("...save Microphone")
 
+        # this happens at the end of the file
+        if self.part.number_downloads_onefile % self.part.save_newfile_ndatapoints == 0:
             #update flight data and save it
             self.flight.data["arrivals"]["values"].to_netcdf(self.save_file_current_path, group="flight_arrivals_times", engine="netcdf4", mode="a")
             self.flight.data["arrivals"]["strings"].to_netcdf(self.save_file_current_path, group="flight_arrivals_info", engine="netcdf4", mode="a")
@@ -613,12 +614,6 @@ class MainWindow(QMainWindow):
             print("..saved flight data")
 
             self.flight.data = self.flight.get_flightdata()
-
-        # this happens at the end of the file
-        if self.part.number_downloads_onefile % self.part.save_newfile_ndatapoints == 0:
-            #save flight data
-            self.flight.data.to_netcdf(self.save_file_current_path, group=self.mic.data.attrs["Measurement"],
-                                    engine="netcdf4", mode="a")
 
 
             #make a new file
@@ -641,26 +636,29 @@ class MainWindow(QMainWindow):
             axis.set_xlim(time_intervall_back, current_time)
             axis.grid()
             axis.set_xlabel("local time")
+            # #making background color
+            timetrue = measurement.data.where(measurement.data.time > np.datetime64(time_intervall_back),
+                                              drop=True) < self.amp_threshold
+            timetrue = np.array([1 if i else 0 for i in timetrue])
+            firsttime = pd.to_datetime(measurement.data.time[0].values)
+            norm = matplotlib.pyplot.Normalize(0, 1)
+            if firsttime > time_intervall_back:
 
+                x_axislimit1, x_axislimit2 = axis.get_xlim()
+                seconds_to_firstpoint = current_time - firsttime
+                x_axislimit1 = x_axislimit2 - (x_axislimit2 - x_axislimit1) * (
+                    seconds_to_firstpoint.total_seconds()) / self.secondsback
+                axis.pcolorfast((x_axislimit1, x_axislimit2), axis.get_ylim(), timetrue[np.newaxis], cmap='RdYlGn',
+                                norm=norm, alpha=0.3)
+            else:
+                axis.pcolorfast(axis.get_xlim(), axis.get_ylim(), timetrue[np.newaxis], cmap='RdYlGn', norm=norm,
+                                alpha=0.3)
+            axis.axhline(y=self.amp_threshold)
+            
 
             # short time plotting
             if self.secondsback <= 5 * 60:
                 axis.plot(measurement.data.time, measurement.data.sel(measured_variable=datatoplot),color = color)
-
-                # #making background color
-                timetrue = measurement.data.where(measurement.data.time > np.datetime64(time_intervall_back),drop = True) < self.amp_threshold
-                timetrue = np.array([1 if i else 0 for i in timetrue])
-                firsttime = pd.to_datetime(measurement.data.time[0].values)
-                norm = matplotlib.pyplot.Normalize(0,1)
-                if firsttime > time_intervall_back:
-
-                    x_axislimit1, x_axislimit2 = axis.get_xlim()
-                    seconds_to_firstpoint = current_time - firsttime
-                    x_axislimit1 =x_axislimit2 - (x_axislimit2-x_axislimit1)*(seconds_to_firstpoint.total_seconds())/self.secondsback
-                    axis.pcolorfast((x_axislimit1,x_axislimit2), axis.get_ylim(), timetrue[np.newaxis], cmap='RdYlGn',  norm = norm, alpha=0.3)
-                else:
-                    axis.pcolorfast(axis.get_xlim(),axis.get_ylim(), timetrue[np.newaxis], cmap='RdYlGn', norm = norm, alpha=0.3)
-                axis.axhline(y=self.amp_threshold)
 
             #plotting with averages for longer time periods
             elif self.secondsback > 5 * 60:
