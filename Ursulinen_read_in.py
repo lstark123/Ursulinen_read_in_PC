@@ -223,7 +223,7 @@ class Flightdata():
                 try:
                     date = flight["flight"]["time"][z][arrival_or_departure + "_date"]
                     time = flight["flight"]["time"][z][arrival_or_departure + "_time"]
-                    flight_movement_time = (pd.to_datetime(202306301630 , format='%Y%m%d%H%M') -pd.Timedelta(2, "H") ).timestamp()
+                    flight_movement_time = (pd.to_datetime(date+time , format='%Y%m%d%H%M') -pd.Timedelta(2, "H") ).timestamp()
                     flight_movement_info[z+"_UNIX"] = np.append(flight_movement_info[z+"_UNIX"], flight_movement_time)
                 except:
                     flight_movement_info[z+"_UNIX"] = np.append(flight_movement_info[z+"_UNIX"], 0)
@@ -668,11 +668,22 @@ class MainWindow(QMainWindow):
                                 alpha=0.3)
 
             #make the flight time y axis
-            times =[datetime.datetime.fromtimestamp(self.flight.data["arrivals"]["values"].sel(flightdata = "estimated_UNIX").values[i])
-                    if self.flight.data["arrivals"]["values"].sel(flightdata = "estimated_UNIX").values[i]!= 0
-                    else datetime.datetime.fromtimestamp(self.flight.data["arrivals"]["values"].sel(flightdata = "scheduled_UNIX").values[i])
-                    for i in range(0,self.flight.data["arrivals"]["values"].shape[0])]
-            print(times)
+            for arrdep in ["arrivals","departures"]:
+                times =[datetime.datetime.fromtimestamp(self.flight.data[arrdep]["values"].sel(flightdata = "estimated_UNIX").values[i])
+                        if self.flight.data[arrdep]["values"].sel(flightdata = "estimated_UNIX").values[i]!= 0
+                        else datetime.datetime.fromtimestamp(self.flight.data[arrdep]["values"].sel(flightdata = "scheduled_UNIX").values[i])
+                        for i in range(0,self.flight.data[arrdep]["values"].shape[0])]
+                if arrdep == "arrivals":
+                    strings = [self.flight.data[arrdep]["strings"].sel(flightdata = "callsign").values[i] +" from "+ self.flight.data["arrivals"]["strings"].sel(flightdata = "origin").values[i]
+                                      for i in range(0,self.flight.data[arrdep]["strings"].shape[0])]
+                else:
+                    strings = [self.flight.data[arrdep]["strings"].sel(flightdata = "callsign").values[i] +" to "+ self.flight.data["arrivals"]["strings"].sel(flightdata = "origin").values[i]
+                                      for i in range(0,self.flight.data[arrdep]["strings"].shape[0])]
+                for time, string in zip(times, strings):
+                    axis.axvline(x = time, color='r')
+                    axis.text(time, 5, string, rotation=90)
+
+
 
             axis.axhline(y=self.amp_threshold)
             axis.legend(["Amplitude Mikrophon"])
@@ -699,6 +710,14 @@ class MainWindow(QMainWindow):
             elif self.secondsback > 5 * 60:
                 avgs = exclude_default_data.sortby(exclude_default_data.time).resample(time='15s').mean()
                 axis.plot(avgs.time, avgs.sel(measured_variable=datatoplot), color=color)
+
+            for arrdep in ["arrivals","departures"]:
+                times =[datetime.datetime.fromtimestamp(self.flight.data[arrdep]["values"].sel(flightdata = "estimated_UNIX").values[i])
+                        if self.flight.data[arrdep]["values"].sel(flightdata = "estimated_UNIX").values[i]!= 0
+                        else datetime.datetime.fromtimestamp(self.flight.data[arrdep]["values"].sel(flightdata = "scheduled_UNIX").values[i])
+                        for i in range(0,self.flight.data[arrdep]["values"].shape[0])]
+                for time in times:
+                    axis.axvline(x = time, color='r')
 
             axis.legend([datatoplot])
             if datatoplot == "number_conc":
