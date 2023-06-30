@@ -255,11 +255,14 @@ class Flightdata():
         return flight_movement_info
     def get_flightdata(self):
         f = FlightData()
-        arrivals_alldata = f.get_airport_arrivals('INN')
-        departures_alldata = f.get_airport_departures('INN')
+        arrivals_alldata = f.get_airport_arrivals('INN',earlier_data = True)
+        departures_alldata = f.get_airport_departures('INN',earlier_data = True)
 
         arrivals = self.extract_relevant_data(arrivals_alldata, "arrival")
         departures = self.extract_relevant_data(departures_alldata, "departure")
+
+        arrivals = arrivals.sortby(arrivals.scheduledtime)
+        departures = departures.sortby(departures.scheduledtime)
 
         flightdata = {"arrivals" : arrivals, "departures": departures}
         return flightdata
@@ -462,11 +465,11 @@ class MainWindow(QMainWindow):
         self.save_file_update_ndatapoints = 15
 
         # path of current file to save to first is a little to early here, but no problem
+        self.save_file_current_inital_time = datetime.datetime.now()
         self.save_file_current_path = os.path.join(self.date_save_location,
-                                                       datetime.datetime.now().strftime(
-                                                           "%Y_%m_%d_%Hh%Mm%Ss") + ".nc")
+                                                   self.save_file_current_inital_time.strftime("%Y_%m_%d_%Hh%Mm%Ss") + ".nc")
+        # initiate ui
         self.init_ui()
-
         #multithreading
         self.threadpool = QThreadPool()
 
@@ -582,7 +585,9 @@ class MainWindow(QMainWindow):
                 if not (os.path.exists(self.date_save_location)):
                     os.mkdir(self.date_save_location)
                 #we have to update the save_file_current_path since the directory changed
-                self.save_file_current_path = self.date_save_location + "\\"+os.path.split(self.save_file_current_path)[1]
+                self.save_file_current_path = os.path.join(self.date_save_location,
+                                                           self.save_file_current_inital_time.strftime(
+                                                               "%Y_%m_%d_%Hh%Mm%Ss") + ".nc")
 
             print(f"thread {self.threadpool.activeThreadCount()} -> save line {self.part.number_downloads_onefile - self.save_file_update_ndatapoints} to {self.part.number_downloads_onefile} at {self.save_file_current_path} ...")
 
@@ -594,10 +599,9 @@ class MainWindow(QMainWindow):
 
         # first make a new file every save_newfile_ndatapoints seconds
         if self.part.number_downloads_onefile % self.part.save_newfile_ndatapoints == 0:
-
+            self.save_file_current_inital_time = datetime.datetime.now()
             self.save_file_current_path = os.path.join(self.date_save_location,
-                                                       datetime.datetime.now().strftime(
-                                                           "%Y_%m_%d_%Hh%Mm%Ss") + ".nc")
+                                                       self.save_file_current_inital_time.strftime("%Y_%m_%d_%Hh%Mm%Ss") + ".nc")
             print(f"open new file at {self.save_file_current_path}")
             self.part.number_downloads_onefile = 0
             self.mic.number_downloads_onefile = 0
