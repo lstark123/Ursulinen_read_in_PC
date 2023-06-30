@@ -718,6 +718,7 @@ class MainWindow(QMainWindow):
                         for i in range(0,self.flight.data[arrdep]["values"].shape[0])]
                 for time in times:
                     axis.axvline(x = time, color='r')
+                print(times)
 
             axis.legend([datatoplot])
             if datatoplot == "number_conc":
