@@ -208,9 +208,8 @@ class Microphone(Measurement):
 # select data by: flight.data["departures"].sel(flightdata = x)
 # with x as 'scheduled', 'estimated', 'origin', 'destination', 'aircraftmodel', 'callsign'
 class Flightdata():
-    def __int__(self):
-        # f = FlightData()
-        self.data = []
+    def __init__(self):
+        self.data = self.get_flightdata()
 
     def extract_relevant_data(self, flightdata_array, arrival_or_departure):
         flight_movement_info = {"scheduled": np.array([]),
@@ -456,6 +455,7 @@ class MainWindow(QMainWindow):
         self.comportpartector = self.dialogue_select_comport()
         self.part = Partector(self.comportpartector )
         self.mic = Microphone()
+        self.flight = Flightdata()
 
         #get cutout seconds which are plotted back
         self.secondsback = 60
@@ -597,6 +597,8 @@ class MainWindow(QMainWindow):
             self.mic.data.to_netcdf(self.save_file_current_path, group=self.mic.data.attrs["Measurement"], engine="netcdf4", mode="a")
             print("...save Microphone")
 
+            #update flight data and save it
+
         # first make a new file every save_newfile_ndatapoints seconds
         if self.part.number_downloads_onefile % self.part.save_newfile_ndatapoints == 0:
             self.save_file_current_inital_time = datetime.datetime.now()
@@ -605,6 +607,7 @@ class MainWindow(QMainWindow):
             print(f"open new file at {self.save_file_current_path}")
             self.part.number_downloads_onefile = 0
             self.mic.number_downloads_onefile = 0
+
 
 
 
@@ -686,14 +689,15 @@ class MainWindow(QMainWindow):
 
     def timer_onesec_funct_to_worker(self):
         def dowloads_saves():
-            self.part.number_downloads_onefile += 1
-            self.mic.number_downloads_onefile += 1
 
             self.download_data(self.part, np.full(3, self.part.number_downloads_onefile)) #****
             # self.download_data(self.part, self.part.get_data(self.part.ser))
             self.download_data(self.mic, np.random.rand(1))  # *****
             # self.download_data(self.mic, self.mic.get_onesec_meanamplitude())
             self.save_datarow()
+
+            self.part.number_downloads_onefile += 1
+            self.mic.number_downloads_onefile += 1
 
         worker = Worker(dowloads_saves)
         self.threadpool.start(worker)
