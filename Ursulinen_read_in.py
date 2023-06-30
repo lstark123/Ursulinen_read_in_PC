@@ -223,7 +223,7 @@ class Flightdata():
                 try:
                     date = flight["flight"]["time"][z][arrival_or_departure + "_date"]
                     time = flight["flight"]["time"][z][arrival_or_departure + "_time"]
-                    flight_movement_time = pd.to_datetime(date+time, format='%Y%m%d%H%M').timestamp()
+                    flight_movement_time = (pd.to_datetime(202306301630 , format='%Y%m%d%H%M') -pd.Timedelta(2, "H") ).timestamp()
                     flight_movement_info[z+"_UNIX"] = np.append(flight_movement_info[z+"_UNIX"], flight_movement_time)
                 except:
                     flight_movement_info[z+"_UNIX"] = np.append(flight_movement_info[z+"_UNIX"], 0)
@@ -666,6 +666,14 @@ class MainWindow(QMainWindow):
             else:
                 axis.pcolorfast(axis.get_xlim(), axis.get_ylim(), timetrue[np.newaxis], cmap='RdYlGn', norm=norm,
                                 alpha=0.3)
+
+            #make the flight time y axis
+            times =[datetime.datetime.fromtimestamp(self.flight.data["arrivals"]["values"].sel(flightdata = "estimated_UNIX").values[i])
+                    if self.flight.data["arrivals"]["values"].sel(flightdata = "estimated_UNIX").values[i]!= 0
+                    else datetime.datetime.fromtimestamp(self.flight.data["arrivals"]["values"].sel(flightdata = "scheduled_UNIX").values[i])
+                    for i in range(0,self.flight.data["arrivals"]["values"].shape[0])]
+            print(times)
+
             axis.axhline(y=self.amp_threshold)
             axis.legend(["Amplitude Mikrophon"])
             axis.set_ylabel(r"[$dB$]")
