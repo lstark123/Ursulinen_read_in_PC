@@ -232,29 +232,32 @@ class Flightdata():
                     flight_place = flight["flight"]["airport"][z]["code"]["iata"]
                     flight_movement_info[z] = np.append(flight_movement_info[z], flight_place)
                 except:
-                    flight_movement_info[z] = np.append(flight_movement_info[z], np.nan)
+                    flight_movement_info[z] = np.append(flight_movement_info[z], "")
             try:
                 flight_movement_info["aircraftmodel"] = np.append(flight_movement_info["aircraftmodel"],
                                                                   flight["flight"]["aircraft"]["model"]["text"])
                 flight_movement_info["callsign"] = np.append(flight_movement_info["callsign"],
                                                              flight["flight"]["identification"]["callsign"])
             except:
-                flight_movement_info["aircraftmodel"] = np.append(flight_movement_info["aircraftmodel"], np.nan)
-                flight_movement_info["callsign"] = np.append(flight_movement_info["callsign"], np.nan)
+                flight_movement_info["aircraftmodel"] = np.append(flight_movement_info["aircraftmodel"], "")
+                flight_movement_info["callsign"] = np.append(flight_movement_info["callsign"], "")
 
         flight_movement_info = pd.DataFrame(flight_movement_info)
-        flight_movement_info = xr.DataArray(
-            flight_movement_info.values,
-            coords={"scheduledtime": flight_movement_info.scheduled_UNIX,
-                    "flightdata": flight_movement_info.columns.values},
-            dims=["scheduledtime", "flightdata"])
-        #make datetime to np.datetime64 -> for to.netcdf4
-        for x in ["scheduled_UNIX","estimated_UNIX"]:
-            try:
-                flight_movement_info.loc[dict(flightdata = x)] = flight_movement_info.sel(flightdata = x).astype("datetime64[ns]")
-            except:
-                pass
 
+        strings = xr.DataArray(
+            flight_movement_info.loc[:,["origin","destination","aircraftmodel","callsign"]].values,
+            coords={"scheduledtime": flight_movement_info.scheduled_UNIX,
+                    "flightdata": flight_movement_info.loc[:,["origin","destination","aircraftmodel","callsign"]].columns.values},
+            dims=["scheduledtime", "flightdata"])
+        values = xr.DataArray(
+            flight_movement_info.loc[:,["scheduled_UNIX","estimated_UNIX"]].values,
+            coords={"scheduledtime": flight_movement_info.scheduled_UNIX,
+                    "flightdata": flight_movement_info.loc[:,["scheduled_UNIX","estimated_UNIX"]].columns.values},
+            dims=["scheduledtime", "flightdata"])
+
+        flight_movement_info = {"strings":strings,"values":values}
+        print(flight_movement_info)
+        print("Extracted relevant information out of flight data response")
 
         return flight_movement_info
     def get_flightdata(self):
@@ -264,12 +267,11 @@ class Flightdata():
 
         arrivals = self.extract_relevant_data(arrivals_alldata, "arrival")
         departures = self.extract_relevant_data(departures_alldata, "departure")
-
-        arrivals = arrivals.sortby(arrivals.scheduledtime)
-        departures = departures.sortby(departures.scheduledtime)
+        for x in ["strings","values"]:
+            arrivals[x] = arrivals[x].sortby(arrivals[x].scheduledtime)
+            departures[x] = departures[x].sortby(departures[x].scheduledtime)
 
         flightdata = {"arrivals" : arrivals, "departures": departures}
-        print("... got new flight data.")
         return flightdata
 
 
