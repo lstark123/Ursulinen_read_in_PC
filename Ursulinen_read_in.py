@@ -20,6 +20,7 @@ import traceback
 import random
 import xarray as xr
 import pandas as pd
+from pyflightdata import FlightData
 
 
 
@@ -200,6 +201,70 @@ class Microphone(Measurement):
                 return np.nan
         else:
             print("default device is not external microphone")
+# download flight data by:
+# flight = Flightdata()
+# flight.data = flight.get_flightdata()
+#get flight data acces xarray by: flight.data["arrivals"] or flight.data["departures"]
+# select data by: flight.data["departures"].sel(flightdata = x)
+# with x as 'scheduled', 'estimated', 'origin', 'destination', 'aircraftmodel', 'callsign'
+class Flightdata():
+    def __int__(self):
+        # f = FlightData()
+        self.data = []
+
+    def extract_relevant_data(self, flightdata_array, arrival_or_departure):
+        flight_movement_info = {"scheduled": np.array([]),
+                                "estimated": np.array([]),
+                                "origin": np.array([]),
+                                "destination": np.array([]),
+                                "aircraftmodel": np.array([]),
+                                "callsign": np.array([])}
+        for flight in flightdata_array:
+            for z in ["scheduled", "estimated"]:
+                try:
+                    date = flight["flight"]["time"][z][arrival_or_departure + "_date"]
+                    time = flight["flight"]["time"][z][arrival_or_departure + "_time"]
+                    flight_movement_time = datetime.datetime.strptime(date + time, "%Y%m%d%H%M")
+                    flight_movement_info[z] = np.append(flight_movement_info[z], flight_movement_time)
+                except:
+                    flight_movement_info[z] = np.append(flight_movement_info[z], np.nan)
+            for z in ["origin", "destination"]:
+                try:
+                    flight_place = flight["flight"]["airport"][z]["code"]["iata"]
+                    flight_movement_info[z] = np.append(flight_movement_info[z], flight_place)
+                except:
+                    flight_movement_info[z] = np.append(flight_movement_info[z], np.nan)
+            try:
+                flight_movement_info["aircraftmodel"] = np.append(flight_movement_info["aircraftmodel"],
+                                                                  flight["flight"]["aircraft"]["model"]["text"])
+                flight_movement_info["callsign"] = np.append(flight_movement_info["callsign"],
+                                                             flight["flight"]["identification"]["callsign"])
+            except:
+                flight_movement_info["aircraftmodel"] = np.append(flight_movement_info["aircraftmodel"], np.nan)
+                flight_movement_info["callsign"] = np.append(flight_movement_info["callsign"], np.nan)
+
+        flight_movement_info = pd.DataFrame(flight_movement_info)
+
+        flight_movement_info = xr.DataArray(
+            flight_movement_info.values,
+            coords={"scheduledtime": flight_movement_info.scheduled,
+                    "flightdata": flight_movement_info.columns.values},
+            dims=["scheduledtime", "flightdata"])
+        print("Extracted relevant information out of flight data response")
+
+        return flight_movement_info
+    def get_flightdata(self):
+        f = FlightData()
+        arrivals_alldata = f.get_airport_arrivals('INN')
+        departures_alldata = f.get_airport_departures('INN')
+
+        arrivals = self.extract_relevant_data(arrivals_alldata, "arrival")
+        departures = self.extract_relevant_data(departures_alldata, "departure")
+
+        flightdata = {"arrivals" : arrivals, "departures": departures}
+        return flightdata
+
+
 
 class Weatherdata(Measurement):
     def __init__(self):
@@ -620,10 +685,10 @@ class MainWindow(QMainWindow):
             self.part.number_downloads_onefile += 1
             self.mic.number_downloads_onefile += 1
 
-            # self.download_data(self.part, np.full(3, self.part.number_downloads_onefile)) #****
-            self.download_data(self.part, self.part.get_data(self.part.ser))
-            # self.download_data(self.mic, np.random.rand(1))  # *****
-            self.download_data(self.mic, self.mic.get_onesec_meanamplitude())
+            self.download_data(self.part, np.full(3, self.part.number_downloads_onefile)) #****
+            # self.download_data(self.part, self.part.get_data(self.part.ser))
+            self.download_data(self.mic, np.random.rand(1))  # *****
+            # self.download_data(self.mic, self.mic.get_onesec_meanamplitude())
             self.save_datarow()
 
         worker = Worker(dowloads_saves)
