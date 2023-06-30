@@ -207,14 +207,13 @@ class Microphone(Measurement):
 #get flight data acces xarray by: flight.data["arrivals"] or flight.data["departures"]
 # select data by: flight.data["departures"].sel(flightdata = x)
 # with x as 'scheduled', 'estimated', 'origin', 'destination', 'aircraftmodel', 'callsign'
-
 class Flightdata():
     def __init__(self):
         self.data = self.get_flightdata()
 
     def extract_relevant_data(self, flightdata_array, arrival_or_departure):
-        flight_movement_info = {"scheduled": np.array([], dtype='datetime64'),
-                                "estimated": np.array([], dtype='datetime64'),
+        flight_movement_info = {"scheduled_UNIX": np.array([]),
+                                "estimated_UNIX": np.array([]),
                                 "origin": np.array([]),
                                 "destination": np.array([]),
                                 "aircraftmodel": np.array([]),
@@ -224,11 +223,10 @@ class Flightdata():
                 try:
                     date = flight["flight"]["time"][z][arrival_or_departure + "_date"]
                     time = flight["flight"]["time"][z][arrival_or_departure + "_time"]
-                    x = datetime.datetime.strptime(date + time, "%Y%m%d%H%M")
-                    flight_movement_time = pd.to_datetime(date+time, format='%Y%m%d%H%M').to_numpy()
-                    flight_movement_info[z] = np.append(flight_movement_info[z], flight_movement_time)
+                    flight_movement_time = pd.to_datetime(date+time, format='%Y%m%d%H%M').timestamp()
+                    flight_movement_info[z+"_UNIX"] = np.append(flight_movement_info[z+"_UNIX"], flight_movement_time)
                 except:
-                    flight_movement_info[z] = np.append(flight_movement_info[z], np.datetime64('nat'))
+                    flight_movement_info[z+"_UNIX"] = np.append(flight_movement_info[z+"_UNIX"], 0)
             for z in ["origin", "destination"]:
                 try:
                     flight_place = flight["flight"]["airport"][z]["code"]["iata"]
@@ -247,11 +245,11 @@ class Flightdata():
         flight_movement_info = pd.DataFrame(flight_movement_info)
         flight_movement_info = xr.DataArray(
             flight_movement_info.values,
-            coords={"scheduledtime": flight_movement_info.scheduled,
+            coords={"scheduledtime": flight_movement_info.scheduled_UNIX,
                     "flightdata": flight_movement_info.columns.values},
             dims=["scheduledtime", "flightdata"])
         #make datetime to np.datetime64 -> for to.netcdf4
-        for x in ["scheduled","estimated"]:
+        for x in ["scheduled_UNIX","estimated_UNIX"]:
             try:
                 flight_movement_info.loc[dict(flightdata = x)] = flight_movement_info.sel(flightdata = x).astype("datetime64[ns]")
             except:
@@ -272,7 +270,6 @@ class Flightdata():
 
         flightdata = {"arrivals" : arrivals, "departures": departures}
         return flightdata
-
 
 class Weatherdata(Measurement):
     def __init__(self):
