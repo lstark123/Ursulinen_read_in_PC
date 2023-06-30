@@ -739,10 +739,10 @@ class MainWindow(QMainWindow):
             self.part.number_downloads_onefile += 1
             self.mic.number_downloads_onefile += 1
 
-            self.download_data(self.part, np.full(3, self.part.number_downloads_onefile)) #****
-            # self.download_data(self.part, self.part.get_data(self.part.ser))
-            self.download_data(self.mic, np.random.rand(1))  # *****
-            # self.download_data(self.mic, self.mic.get_onesec_meanamplitude())
+            # self.download_data(self.part, np.full(3, self.part.number_downloads_onefile)) #****
+            self.download_data(self.part, self.part.get_data(self.part.ser))
+            # self.download_data(self.mic, np.random.rand(1))  # *****
+            self.download_data(self.mic, self.mic.get_onesec_meanamplitude())
             self.save_datarow()
 
         worker = Worker(dowloads_saves)
