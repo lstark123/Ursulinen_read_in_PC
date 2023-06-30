@@ -636,29 +636,26 @@ class MainWindow(QMainWindow):
             axis.set_xlim(time_intervall_back, current_time)
             axis.grid()
             axis.set_xlabel("local time")
-            # #making background color
-            timetrue = measurement.data.where(measurement.data.time > np.datetime64(time_intervall_back),
-                                              drop=True) < self.amp_threshold
-            timetrue = np.array([1 if i else 0 for i in timetrue])
-            firsttime = pd.to_datetime(measurement.data.time[0].values)
-            norm = matplotlib.pyplot.Normalize(0, 1)
-            if firsttime > time_intervall_back:
 
-                x_axislimit1, x_axislimit2 = axis.get_xlim()
-                seconds_to_firstpoint = current_time - firsttime
-                x_axislimit1 = x_axislimit2 - (x_axislimit2 - x_axislimit1) * (
-                    seconds_to_firstpoint.total_seconds()) / self.secondsback
-                axis.pcolorfast((x_axislimit1, x_axislimit2), axis.get_ylim(), timetrue[np.newaxis], cmap='RdYlGn',
-                                norm=norm, alpha=0.3)
-            else:
-                axis.pcolorfast(axis.get_xlim(), axis.get_ylim(), timetrue[np.newaxis], cmap='RdYlGn', norm=norm,
-                                alpha=0.3)
-            axis.axhline(y=self.amp_threshold)
-            
 
             # short time plotting
             if self.secondsback <= 5 * 60:
                 axis.plot(measurement.data.time, measurement.data.sel(measured_variable=datatoplot),color = color)
+
+                # #making background color
+                timetrue = measurement.data.where(measurement.data.time > np.datetime64(time_intervall_back),drop = True) < self.amp_threshold
+                timetrue = np.array([1 if i else 0 for i in timetrue])
+                firsttime = pd.to_datetime(measurement.data.time[0].values)
+                norm = matplotlib.pyplot.Normalize(0,1)
+                if firsttime > time_intervall_back:
+
+                    x_axislimit1, x_axislimit2 = axis.get_xlim()
+                    seconds_to_firstpoint = current_time - firsttime
+                    x_axislimit1 =x_axislimit2 - (x_axislimit2-x_axislimit1)*(seconds_to_firstpoint.total_seconds())/self.secondsback
+                    axis.pcolorfast((x_axislimit1,x_axislimit2), axis.get_ylim(), timetrue[np.newaxis], cmap='RdYlGn',  norm = norm, alpha=0.3)
+                else:
+                    axis.pcolorfast(axis.get_xlim(),axis.get_ylim(), timetrue[np.newaxis], cmap='RdYlGn', norm = norm, alpha=0.3)
+                axis.axhline(y=self.amp_threshold)
 
             #plotting with averages for longer time periods
             elif self.secondsback > 5 * 60:
