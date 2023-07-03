@@ -41,12 +41,14 @@ class Worker(QRunnable):
         self.fn = fn
         self.args = args
         self.kwargs = kwargs
+        self.finished = pyqtSignal()
     @pyqtSlot()
     def run(self):
         '''
         Initialise the runner function with passed args, kwargs.
         '''
         self.fn(*self.args, **self.kwargs)
+        self.finished.emit()
 
 
 
@@ -124,8 +126,10 @@ class Ui_MainWindow(QMainWindow):
             print(f"thread {self.threadpool.activeThreadCount()} -> load data and update plot")
             self.data =self.load_data()
             self.update_plot("plot1")
-            self.update_plot("plot2")
-            self.update_plot("plot3")
+            # time.sleep(0.5)
+            # self.update_plot("plot2")
+            # time.sleep(0.5)
+            # self.update_plot("plot3")
             print(f"thread {self.threadpool.activeThreadCount()} -> load data and update plot finished")
         worker = Worker(to_worker)
         self.threadpool.start(worker)
@@ -133,12 +137,13 @@ class Ui_MainWindow(QMainWindow):
     def selectmeasurement(self,whichplot):
         def to_worker():
             print(f"thread {self.threadpool.activeThreadCount()} -> select other line" )
-            self.plotinfo[whichplot]["selected_line"] = self.measured_variables[self.selection_plot_1.getCheckedRows()]
+            self.plotinfo[whichplot]["selected_line"] = self.measured_variables[self.selections[whichplot].getCheckedRows()]
             print("new selected measurments =", self.plotinfo[whichplot]["selected_line"])
-            self.update_plot("plot1")
+            self.update_plot(whichplot)
             print(f"thread {self.threadpool.activeThreadCount()} -> select other line finished")
         worker = Worker(to_worker)
         self.threadpool.start(worker)
+
 
 
     def load_data(self):
@@ -154,10 +159,11 @@ class Ui_MainWindow(QMainWindow):
         print("filenames new: ", self.filenames_new_loaded)
         functionreturn = {"microphone":[],
                           "partector" : []}
+        print("funct load_data : Load files with filepaths", self.filenames_new_loaded)
 
         if self.filenames_new_loaded.size > 1:
             if not np.array_equal(self.filenames_old_loaded, self.filenames_new_loaded):
-                print("funct load_data : Load files with filepaths", self.filenames_new_loaded)
+
 
                 with xr.open_mfdataset(self.filenames_new_loaded, group="Partector",
                                        combine="nested",
@@ -166,24 +172,24 @@ class Ui_MainWindow(QMainWindow):
                         print("Time range too big ", ds.sizes["time"], "timestamps")
                         functionreturn = -1
                     elif ds.sizes["time"] > 100000:
-                        print("More than 100000 points -> plot 300s averages", ds.sizes["time"], "timestamps")
+                        print("More than 100000 points (", ds.sizes["time"], "timestamps) -> plot 600s averages")
                         self.averaging = 60 * 5
-                        avgs = ds.sortby(ds.time).resample(time='300s').mean()
+                        avgs = ds.sortby(ds.time).resample(time='600s').mean()
                         functionreturn["partector"] = avgs
                     elif ds.sizes["time"] > 30000:
-                        print("More than 30000 points -> 60s averages", ds.sizes["time"], "timestamps")
+                        print("More than 30000 points (", ds.sizes["time"], "timestamps) -> 60s averages")
                         self.averaging = 60
                         avgs = ds.sortby(ds.time).resample(time='60s').mean()
                         functionreturn["partector"] = avgs
                     elif ds.sizes["time"] > 5000:
-                        print("More than 5000 points -> 15s averages", ds.sizes["time"], "timestamps")
+                        print("More than 5000 points (", ds.sizes["time"], "timestamps) -> 15s averages")
                         self.averaging = 15
                         avgs = ds.sortby(ds.time).resample(time='15s').mean()
                         functionreturn["partector"] = avgs
                     else:
-                        print("Less than 5000 points -> no averages", ds.sizes["time"], "timestamps")
+                        print("Less than 5000 points (", ds.sizes["time"], "timestamps) -> no averages")
                         functionreturn["partector"] = ds
-                    print("Downloaded Microphone data", ds)
+                    print("Downloaded Partector data", ds)
 
                 with xr.open_mfdataset(self.filenames_new_loaded, group="Microphone",
                                        combine="nested",
@@ -192,9 +198,9 @@ class Ui_MainWindow(QMainWindow):
                         print("Time range too big ", ds.sizes["time"], "timestamps")
                         functionreturn = -1
                     elif ds.sizes["time"] > 100000:
-                        print("More than 100000 points -> plot 300s averages", ds.sizes["time"], "timestamps")
+                        print("More than 100000 points -> plot 600s averages", ds.sizes["time"], "timestamps")
                         self.averaging = 60 * 5
-                        avgs = ds.sortby(ds.time).resample(time='300s').mean()
+                        avgs = ds.sortby(ds.time).resample(time='600s').mean()
                         functionreturn["microphone"] = avgs
                     elif ds.sizes["time"] > 30000:
                         print("More than 30000 points -> 60s averages", ds.sizes["time"], "timestamps")
@@ -227,7 +233,6 @@ class Ui_MainWindow(QMainWindow):
             measurement = "partector"
             datatoplot = self.plotinfo[whichplot]["selected_line"]
         # initialize change with new boundaries
-
         print("update plot from " + self.startend["starttime"].strftime("%Y.%m.%d %H-%M-%S") + " to " +
               self.startend[
                   "endtime"].strftime("%Y.%m.%d %H-%M-%S"))
@@ -243,11 +248,14 @@ class Ui_MainWindow(QMainWindow):
         # short time plotting#
         if self.data != -1:
             print(f"Plotting with {self.averaging}s averaging")
-            print(datatoplot)
-            print("toplot", self.data[measurement]["__xarray_dataarray_variable__"].time.values,
-                  self.data[measurement]["__xarray_dataarray_variable__"].sel(measured_variable=datatoplot).values)
+            print("with data:", measurement, datatoplot)
+            # why does it crash here? to many workers? -> no!
+            # any error?
+            #maybe all plots at once update too much -> sleep still chrashing hmmm
             for line in datatoplot:
                 print("plotted " + line)
+                print("plotting values", self.data[measurement]["__xarray_dataarray_variable__"].time.values,
+                      self.data[measurement]["__xarray_dataarray_variable__"].sel(measured_variable=line).values)
                 if logyplot:
 
                     axis.semilogy(self.data[measurement]["__xarray_dataarray_variable__"].time.values,
@@ -339,18 +347,23 @@ class Ui_MainWindow(QMainWindow):
         self.verticalLayout.addWidget(self.logy_plot1)
         self.logy_plot1.stateChanged.connect(lambda: self.logy_checkbox("plot1"))
 
-
         self.selection_plot_1 = CheckBoxListWidget()
-        self.selection_plot_1.addItems(self.measured_variables)
-        self.selection_plot_1.checkedSignal.connect(lambda: self.selectmeasurement("plot1"))
         self.verticalLayout.addWidget(self.selection_plot_1)
 
-        self.selection_plot_2 = QtWidgets.QListWidget(self.centralwidget)
+        self.selection_plot_2 = CheckBoxListWidget()
         self.selection_plot_2.setObjectName("selection_plot_2")
+        self.selection_plot_2.addItems(self.measured_variables)
+        self.selection_plot_2.checkedSignal.connect(lambda: self.selectmeasurement("plot2"))
         self.verticalLayout.addWidget(self.selection_plot_2)
-        self.selection_plot_3 = QtWidgets.QListWidget(self.centralwidget)
+
+
+        self.selection_plot_3 = CheckBoxListWidget()
+        self.selection_plot_3.addItems(self.measured_variables)
+        self.selection_plot_3.checkedSignal.connect(lambda: self.selectmeasurement("plot3"))
         self.selection_plot_3.setObjectName("selection_plot_3")
         self.verticalLayout.addWidget(self.selection_plot_3)
+
+        self.selections = {"plot1": self.selection_plot_1, "plot2":self.selection_plot_2, "plot3": self.selection_plot_3}
 
         # adjustment of layout
         self.horizontalLayout.addLayout(self.verticalLayout)
