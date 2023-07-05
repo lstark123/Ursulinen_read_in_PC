@@ -22,6 +22,9 @@ import xarray as xr
 import pandas as pd
 from pyflightdata import FlightData
 
+#fragen:
+# wieso sind die Messpunkte nicht immer zur gleichen Zeit?
+# since I implemented the flight arrivals after every 5th timestamp big gap -> takes too long to plot?
 
 
 
@@ -283,7 +286,7 @@ class Weatherdata(Measurement):
 
 
         self.chromedrive_path = r"C:\Users\peaq\AppData\Local\Google\Chrome\chromedriver.exe"
-        self.data = self.scrape_wunderground()
+        self.data = self.get_data()
 
     def render_page(self, url):
         driver = webdriver.Chrome(self.chromedrive_path)

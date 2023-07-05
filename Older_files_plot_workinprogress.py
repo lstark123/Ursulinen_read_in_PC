@@ -16,7 +16,7 @@ from pathlib import Path
 import os
 import pandas as pd
 from pyqt_checkbox_list_widget.checkBoxListWidget import CheckBoxListWidget
-
+from cycler import cycler
 
 #Workers for multithreading
 
@@ -70,10 +70,11 @@ class Ui_MainWindow(QMainWindow):
         super().__init__()
         print("Initializing Window")
         self.threadpool = QThreadPool()
+        self.threadpool.setMaxThreadCount(1)
         self.setGeometry(0, 0, 1000, 1000)
         #multithreading
         self.save_newfile_ndatapoints = 60*60 # 1 h files
-        self.parentdir = r"E:\Uniarbeit\data"
+        self.parentdir = r"E:\Uniarbeit\data_dach"
         self.filenames_old_loaded = np.array([False])
         self.filenames_new_loaded = np.array([False])
         self.averaging = 1
@@ -93,7 +94,10 @@ class Ui_MainWindow(QMainWindow):
         self.setupUi()
         # self.replot()
 
-
+    def logy_checkbox(self,whichplot):
+        print("Logy of ", whichplot)
+        self.plotinfo[whichplot]["logy"] = self.logy_selections[whichplot].isChecked()
+        self.update_plot(whichplot)
 
     def change_time(self, time_selected, time_to_change):
         def to_worker():
@@ -123,6 +127,7 @@ class Ui_MainWindow(QMainWindow):
     def load_replot(self):
         def to_worker():
             print(f"thread {self.threadpool.activeThreadCount()} -> load data and update plot")
+            self.data = []
             self.data =self.load_data()
             self.update_plot("plot1")
             # time.sleep(0.5)
@@ -152,7 +157,7 @@ class Ui_MainWindow(QMainWindow):
         files_datetimes = pd.to_datetime(files_datetimes, errors='coerce', format="%Y_%m_%d_%Hh%Mm%Ss")
         # preselect a range (afterwards more narrow selection)
         self.filenames_new_loaded = filenames[np.where(
-            (self.startend["starttime"] < files_datetimes) & (files_datetimes < (self.startend["endtime"] + file_length)))]
+            (self.startend["starttime"] < files_datetimes - file_length) & (files_datetimes < (self.startend["endtime"] + file_length)))]
         print("filenames old ", self.filenames_old_loaded)
         print("filenames new: ", self.filenames_new_loaded)
         functionreturn = {"microphone":[],
@@ -160,65 +165,67 @@ class Ui_MainWindow(QMainWindow):
         print("funct load_data : Load files with filepaths", self.filenames_new_loaded)
 
         if self.filenames_new_loaded.size > 1:
-            # if not np.array_equal(self.filenames_old_loaded, self.filenames_new_loaded):
+            if not np.array_equal(self.filenames_old_loaded, self.filenames_new_loaded):
 
 
-            with xr.open_mfdataset(self.filenames_new_loaded, group="Partector",
-                                   combine="nested",
-                                   preprocess=lambda ds: ds.isel(time=ds['time.year'] > 2000)) as ds:
-                if ds.sizes["time"] > 200000:
-                    print("Time range too big ", ds.sizes["time"], "timestamps")
-                    functionreturn = -1
-                elif ds.sizes["time"] > 100000:
-                    print("More than 100000 points (", ds.sizes["time"], "timestamps) -> plot 600s averages")
-                    self.averaging = 60 * 5
-                    avgs = ds.sortby(ds.time).resample(time='600s').mean()
-                    functionreturn["partector"] = avgs
-                elif ds.sizes["time"] > 30000:
-                    print("More than 30000 points (", ds.sizes["time"], "timestamps) -> 60s averages")
-                    self.averaging = 60
-                    avgs = ds.sortby(ds.time).resample(time='60s').mean()
-                    functionreturn["partector"] = avgs
-                elif ds.sizes["time"] > 5000:
-                    print("More than 5000 points (", ds.sizes["time"], "timestamps) -> 15s averages")
-                    self.averaging = 15
-                    avgs = ds.sortby(ds.time).resample(time='15s').mean()
-                    functionreturn["partector"] = avgs
-                else:
-                    print("Less than 5000 points (", ds.sizes["time"], "timestamps) -> no averages")
-                    functionreturn["partector"] = ds
-                print("Downloaded Partector data", ds)
+                with xr.open_mfdataset(self.filenames_new_loaded, group="Partector",
+                                       combine="nested",
+                                       preprocess=lambda ds: ds.isel(time=ds['time.year'] > 2000)) as ds:
+                    if ds.sizes["time"] > 200000:
+                        print("Time range too big ", ds.sizes["time"], "timestamps")
+                        functionreturn = -1
+                    elif ds.sizes["time"] > 100000:
+                        print("More than 100000 points (", ds.sizes["time"], "timestamps) -> plot 600s averages")
+                        self.averaging = 60 * 5
+                        avgs = ds.sortby(ds.time).resample(time='600s').mean()
+                        functionreturn["partector"] = avgs
+                    elif ds.sizes["time"] > 30000:
+                        print("More than 30000 points (", ds.sizes["time"], "timestamps) -> 60s averages")
+                        self.averaging = 60
+                        avgs = ds.sortby(ds.time).resample(time='60s').mean()
+                        functionreturn["partector"] = avgs
+                    elif ds.sizes["time"] > 5000:
+                        print("More than 5000 points (", ds.sizes["time"], "timestamps) -> 15s averages")
+                        self.averaging = 15
+                        # avgs = ds.sortby(ds.time).resample(time='15s').mean()
+                        # functionreturn["partector"] = avgs
+                        functionreturn["partector"] = ds
+                    else:
+                        print("Less than 5000 points (", ds.sizes["time"], "timestamps) -> no averages")
+                        functionreturn["partector"] = ds
+                    print("Downloaded Partector data", ds)
 
-            with xr.open_mfdataset(self.filenames_new_loaded, group="Microphone",
-                                   combine="nested",
-                                   preprocess=lambda ds: ds.isel(time=ds['time.year'] > 2000)) as ds:
-                if ds.sizes["time"] > 200000:
-                    print("Time range too big ", ds.sizes["time"], "timestamps")
-                    functionreturn = -1
-                elif ds.sizes["time"] > 100000:
-                    print("More than 100000 points -> plot 600s averages", ds.sizes["time"], "timestamps")
-                    self.averaging = 60 * 5
-                    avgs = ds.sortby(ds.time).resample(time='600s').mean()
-                    functionreturn["microphone"] = avgs
-                elif ds.sizes["time"] > 30000:
-                    print("More than 30000 points -> 60s averages", ds.sizes["time"], "timestamps")
-                    self.averaging = 60
-                    avgs = ds.sortby(ds.time).resample(time='60s').mean()
-                    functionreturn["microphone"] = avgs
-                elif ds.sizes["time"] > 5000:
-                    print("More than 5000 points -> 15s averages", ds.sizes["time"], "timestamps")
-                    self.averaging = 15
-                    avgs = ds.sortby(ds.time).resample(time='15s').mean()
-                    functionreturn["microphone"] = avgs
-                else:
-                    print("Less than 5000 points -> no averages", ds.sizes["time"], "timestamps")
-                    functionreturn["microphone"] = ds
+                with xr.open_mfdataset(self.filenames_new_loaded, group="Microphone",
+                                       combine="nested",
+                                       preprocess=lambda ds: ds.isel(time=ds['time.year'] > 2000)) as ds:
+                    if ds.sizes["time"] > 200000:
+                        print("Time range too big ", ds.sizes["time"], "timestamps")
+                        functionreturn = -1
+                    elif ds.sizes["time"] > 100000:
+                        print("More than 100000 points -> plot 600s averages", ds.sizes["time"], "timestamps")
+                        self.averaging = 60 * 5
+                        avgs = ds.sortby(ds.time).resample(time='600s').mean()
+                        functionreturn["microphone"] = avgs
+                    elif ds.sizes["time"] > 30000:
+                        print("More than 30000 points -> 60s averages", ds.sizes["time"], "timestamps")
+                        self.averaging = 60
+                        avgs = ds.sortby(ds.time).resample(time='60s').mean()
+                        functionreturn["microphone"] = avgs
+                    elif ds.sizes["time"] > 5000:
+                        print("More than 5000 points -> 15s averages", ds.sizes["time"], "timestamps")
+                        self.averaging = 15
+                        # avgs = ds.sortby(ds.time).resample(time='15s').mean()
+                        # functionreturn["microphone"] = avgs
+                        functionreturn["microphone"] = ds
+                    else:
+                        print("Less than 5000 points -> no averages", ds.sizes["time"], "timestamps")
+                        functionreturn["microphone"] = ds
 
-                print("Downloaded Microphone data", ds)
-            return functionreturn
+                    print("Downloaded Microphone data", ds)
+                return functionreturn
 
-            # else:
-            #     print("funct load_data: Data already loaded -> no new download")
+            else:
+                print("funct load_data: Data already loaded -> no new download")
         else:
             print("funct load_data: No data at this time")
             return -1
@@ -243,26 +250,19 @@ class Ui_MainWindow(QMainWindow):
         axis.set_xlim(self.startend["starttime"], self.startend["endtime"])
         axis.grid()
         axis.set_xlabel("local time")
+        custom_cycler = (cycler(color=['r', 'b', 'm', 'g']))
         # short time plotting#
         if self.data != -1:
             print(f"Plotting with {self.averaging}s averaging")
             print("with data:", measurement, datatoplot)
-            # why does it crash here? to many workers? -> no!
-            # any error?
-            #maybe all plots at once update too much -> sleep still chrashing hmmm
-            #now with reloading chrashing randomly Process finished with exit code -1073741819 (0xC0000005) 0xc0000005 appears to be an access violation
-            # pycharm error include trying to access some data from a restricted memory space or an unloaded file.
-            #If the thread termination isn’t synchronized, you’ll receive the above error on your screen. It means that if a thread is created in your program, but it gets terminated through a function call. Now, if your program tries to access the same thread, the error will show up.
-            #Look at this example for more clarity. You have loaded a DLL file and executed a function that makes the DLL code create a thread. The given thread’s task is to access some DLL-specific data. Next, you have made a call to the FreeLibrary() function to terminate DLL.
-
-            #Consequently, the destructors will run and send an implicit signal to the thread created earlier to terminate. After this, they’ll perform a cleanup process. Now, you have unloaded the DLL. At this point, if your program is scheduled to switch back to the given thread, the pycharm process finished with exit code “-1073741819 (0xc0000005)” error.
+            #problem wahrscheinlich wenn das xarray in anderem thread ist -> hab mich auf einen thread reduziert
             for line in datatoplot:
                 print("plotted " + line)
                 print("plotting values", self.data[measurement]["__xarray_dataarray_variable__"].time.values,
                       self.data[measurement]["__xarray_dataarray_variable__"].sel(measured_variable=line).values)
 
                 if logyplot:
-
+                    #change cyclecolor dependent of plot
                     axis.semilogy(self.data[measurement]["__xarray_dataarray_variable__"].time.values,
                                   self.data[measurement]["__xarray_dataarray_variable__"].sel(measured_variable=line).values)
                 else:
@@ -282,16 +282,7 @@ class Ui_MainWindow(QMainWindow):
         self.selection_plot_1/2/3 = Selection widget 1-3
     '''
 
-    def logy_checkbox(self,whichplot):
-        print("Logy of plot 1")
-        if whichplot == "plot1":
-            self.plotinfo["plot1"]["logy"] =self.logy_plot1.isChecked()
-            print(self.plotinfo["plot1"]["logy"])
-        # if whichplot == "plot2":
-        #     self.plotinfo["plot2"]["logy"] =self.logy_plot2.isChecked()
-        # if whichplot == "plot1":
-        #     self.plotinfo["plot3"]["logy"] =self.logy_plot3.isChecked()
-        self.update_plot(whichplot)
+
 
     def setupUi(self):
         self.setObjectName("MainWindow")
@@ -355,12 +346,19 @@ class Ui_MainWindow(QMainWindow):
         self.selection_plot_1 = CheckBoxListWidget()
         self.verticalLayout.addWidget(self.selection_plot_1)
 
+        self.logy_plot2 = QCheckBox("Plot logarithmisch")
+        self.verticalLayout.addWidget(self.logy_plot2)
+        self.logy_plot2.stateChanged.connect(lambda: self.logy_checkbox("plot2"))
+
         self.selection_plot_2 = CheckBoxListWidget()
         self.selection_plot_2.setObjectName("selection_plot_2")
         self.selection_plot_2.addItems(self.measured_variables)
         self.selection_plot_2.checkedSignal.connect(lambda: self.selectmeasurement("plot2"))
         self.verticalLayout.addWidget(self.selection_plot_2)
 
+        self.logy_plot3 = QCheckBox("Plot logarithmisch")
+        self.verticalLayout.addWidget(self.logy_plot3)
+        self.logy_plot3.stateChanged.connect(lambda: self.logy_checkbox("plot3"))
 
         self.selection_plot_3 = CheckBoxListWidget()
         self.selection_plot_3.addItems(self.measured_variables)
@@ -369,6 +367,7 @@ class Ui_MainWindow(QMainWindow):
         self.verticalLayout.addWidget(self.selection_plot_3)
 
         self.selections = {"plot1": self.selection_plot_1, "plot2":self.selection_plot_2, "plot3": self.selection_plot_3}
+        self.logy_selections = {"plot1": self.logy_plot1, "plot2":self.logy_plot2, "plot3": self.logy_plot3}
 
         # adjustment of layout
         self.horizontalLayout.addLayout(self.verticalLayout)
