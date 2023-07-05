@@ -41,14 +41,13 @@ class Worker(QRunnable):
         self.fn = fn
         self.args = args
         self.kwargs = kwargs
-        self.finished = pyqtSignal()
+
     @pyqtSlot()
     def run(self):
         '''
         Initialise the runner function with passed args, kwargs.
         '''
         self.fn(*self.args, **self.kwargs)
-        self.finished.emit()
 
 
 
@@ -127,9 +126,9 @@ class Ui_MainWindow(QMainWindow):
             self.data =self.load_data()
             self.update_plot("plot1")
             # time.sleep(0.5)
-            # self.update_plot("plot2")
+            self.update_plot("plot2")
             # time.sleep(0.5)
-            # self.update_plot("plot3")
+            self.update_plot("plot3")
             print(f"thread {self.threadpool.activeThreadCount()} -> load data and update plot finished")
         worker = Worker(to_worker)
         self.threadpool.start(worker)
@@ -143,7 +142,6 @@ class Ui_MainWindow(QMainWindow):
             print(f"thread {self.threadpool.activeThreadCount()} -> select other line finished")
         worker = Worker(to_worker)
         self.threadpool.start(worker)
-
 
 
     def load_data(self):
@@ -162,65 +160,65 @@ class Ui_MainWindow(QMainWindow):
         print("funct load_data : Load files with filepaths", self.filenames_new_loaded)
 
         if self.filenames_new_loaded.size > 1:
-            if not np.array_equal(self.filenames_old_loaded, self.filenames_new_loaded):
+            # if not np.array_equal(self.filenames_old_loaded, self.filenames_new_loaded):
 
 
-                with xr.open_mfdataset(self.filenames_new_loaded, group="Partector",
-                                       combine="nested",
-                                       preprocess=lambda ds: ds.isel(time=ds['time.year'] > 2000)) as ds:
-                    if ds.sizes["time"] > 200000:
-                        print("Time range too big ", ds.sizes["time"], "timestamps")
-                        functionreturn = -1
-                    elif ds.sizes["time"] > 100000:
-                        print("More than 100000 points (", ds.sizes["time"], "timestamps) -> plot 600s averages")
-                        self.averaging = 60 * 5
-                        avgs = ds.sortby(ds.time).resample(time='600s').mean()
-                        functionreturn["partector"] = avgs
-                    elif ds.sizes["time"] > 30000:
-                        print("More than 30000 points (", ds.sizes["time"], "timestamps) -> 60s averages")
-                        self.averaging = 60
-                        avgs = ds.sortby(ds.time).resample(time='60s').mean()
-                        functionreturn["partector"] = avgs
-                    elif ds.sizes["time"] > 5000:
-                        print("More than 5000 points (", ds.sizes["time"], "timestamps) -> 15s averages")
-                        self.averaging = 15
-                        avgs = ds.sortby(ds.time).resample(time='15s').mean()
-                        functionreturn["partector"] = avgs
-                    else:
-                        print("Less than 5000 points (", ds.sizes["time"], "timestamps) -> no averages")
-                        functionreturn["partector"] = ds
-                    print("Downloaded Partector data", ds)
+            with xr.open_mfdataset(self.filenames_new_loaded, group="Partector",
+                                   combine="nested",
+                                   preprocess=lambda ds: ds.isel(time=ds['time.year'] > 2000)) as ds:
+                if ds.sizes["time"] > 200000:
+                    print("Time range too big ", ds.sizes["time"], "timestamps")
+                    functionreturn = -1
+                elif ds.sizes["time"] > 100000:
+                    print("More than 100000 points (", ds.sizes["time"], "timestamps) -> plot 600s averages")
+                    self.averaging = 60 * 5
+                    avgs = ds.sortby(ds.time).resample(time='600s').mean()
+                    functionreturn["partector"] = avgs
+                elif ds.sizes["time"] > 30000:
+                    print("More than 30000 points (", ds.sizes["time"], "timestamps) -> 60s averages")
+                    self.averaging = 60
+                    avgs = ds.sortby(ds.time).resample(time='60s').mean()
+                    functionreturn["partector"] = avgs
+                elif ds.sizes["time"] > 5000:
+                    print("More than 5000 points (", ds.sizes["time"], "timestamps) -> 15s averages")
+                    self.averaging = 15
+                    avgs = ds.sortby(ds.time).resample(time='15s').mean()
+                    functionreturn["partector"] = avgs
+                else:
+                    print("Less than 5000 points (", ds.sizes["time"], "timestamps) -> no averages")
+                    functionreturn["partector"] = ds
+                print("Downloaded Partector data", ds)
 
-                with xr.open_mfdataset(self.filenames_new_loaded, group="Microphone",
-                                       combine="nested",
-                                       preprocess=lambda ds: ds.isel(time=ds['time.year'] > 2000)) as ds:
-                    if ds.sizes["time"] > 200000:
-                        print("Time range too big ", ds.sizes["time"], "timestamps")
-                        functionreturn = -1
-                    elif ds.sizes["time"] > 100000:
-                        print("More than 100000 points -> plot 600s averages", ds.sizes["time"], "timestamps")
-                        self.averaging = 60 * 5
-                        avgs = ds.sortby(ds.time).resample(time='600s').mean()
-                        functionreturn["microphone"] = avgs
-                    elif ds.sizes["time"] > 30000:
-                        print("More than 30000 points -> 60s averages", ds.sizes["time"], "timestamps")
-                        self.averaging = 60
-                        avgs = ds.sortby(ds.time).resample(time='60s').mean()
-                        functionreturn["microphone"] = avgs
-                    elif ds.sizes["time"] > 5000:
-                        print("More than 5000 points -> 15s averages", ds.sizes["time"], "timestamps")
-                        self.averaging = 15
-                        avgs = ds.sortby(ds.time).resample(time='15s').mean()
-                        functionreturn["microphone"] = avgs
-                    else:
-                        print("Less than 5000 points -> no averages", ds.sizes["time"], "timestamps")
-                        functionreturn["microphone"] = ds
+            with xr.open_mfdataset(self.filenames_new_loaded, group="Microphone",
+                                   combine="nested",
+                                   preprocess=lambda ds: ds.isel(time=ds['time.year'] > 2000)) as ds:
+                if ds.sizes["time"] > 200000:
+                    print("Time range too big ", ds.sizes["time"], "timestamps")
+                    functionreturn = -1
+                elif ds.sizes["time"] > 100000:
+                    print("More than 100000 points -> plot 600s averages", ds.sizes["time"], "timestamps")
+                    self.averaging = 60 * 5
+                    avgs = ds.sortby(ds.time).resample(time='600s').mean()
+                    functionreturn["microphone"] = avgs
+                elif ds.sizes["time"] > 30000:
+                    print("More than 30000 points -> 60s averages", ds.sizes["time"], "timestamps")
+                    self.averaging = 60
+                    avgs = ds.sortby(ds.time).resample(time='60s').mean()
+                    functionreturn["microphone"] = avgs
+                elif ds.sizes["time"] > 5000:
+                    print("More than 5000 points -> 15s averages", ds.sizes["time"], "timestamps")
+                    self.averaging = 15
+                    avgs = ds.sortby(ds.time).resample(time='15s').mean()
+                    functionreturn["microphone"] = avgs
+                else:
+                    print("Less than 5000 points -> no averages", ds.sizes["time"], "timestamps")
+                    functionreturn["microphone"] = ds
 
-                    print("Downloaded Microphone data", ds)
-                return functionreturn
+                print("Downloaded Microphone data", ds)
+            return functionreturn
 
-            else:
-                print("funct load_data: Data already loaded -> no new download")
+            # else:
+            #     print("funct load_data: Data already loaded -> no new download")
         else:
             print("funct load_data: No data at this time")
             return -1
@@ -252,10 +250,17 @@ class Ui_MainWindow(QMainWindow):
             # why does it crash here? to many workers? -> no!
             # any error?
             #maybe all plots at once update too much -> sleep still chrashing hmmm
+            #now with reloading chrashing randomly Process finished with exit code -1073741819 (0xC0000005) 0xc0000005 appears to be an access violation
+            # pycharm error include trying to access some data from a restricted memory space or an unloaded file.
+            #If the thread termination isn’t synchronized, you’ll receive the above error on your screen. It means that if a thread is created in your program, but it gets terminated through a function call. Now, if your program tries to access the same thread, the error will show up.
+            #Look at this example for more clarity. You have loaded a DLL file and executed a function that makes the DLL code create a thread. The given thread’s task is to access some DLL-specific data. Next, you have made a call to the FreeLibrary() function to terminate DLL.
+
+            #Consequently, the destructors will run and send an implicit signal to the thread created earlier to terminate. After this, they’ll perform a cleanup process. Now, you have unloaded the DLL. At this point, if your program is scheduled to switch back to the given thread, the pycharm process finished with exit code “-1073741819 (0xc0000005)” error.
             for line in datatoplot:
                 print("plotted " + line)
                 print("plotting values", self.data[measurement]["__xarray_dataarray_variable__"].time.values,
                       self.data[measurement]["__xarray_dataarray_variable__"].sel(measured_variable=line).values)
+
                 if logyplot:
 
                     axis.semilogy(self.data[measurement]["__xarray_dataarray_variable__"].time.values,

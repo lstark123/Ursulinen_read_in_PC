@@ -12,8 +12,8 @@ import os
 import serial
 import datetime
 import numpy as np
-#from bs4 import BeautifulSoup as BS
-#from selenium import webdriver
+from bs4 import BeautifulSoup as BS
+from selenium import webdriver
 import time
 import sounddevice as sd
 import traceback
