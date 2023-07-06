@@ -166,63 +166,24 @@ class Ui_MainWindow(QMainWindow):
 
         if self.filenames_new_loaded.size > 1:
             if not np.array_equal(self.filenames_old_loaded, self.filenames_new_loaded):
-
+                if len(self.filenames_new_loaded) > 10:
+                    print("Time range too big,only loading first 10 files")
+                    self.filenames_new_loaded = self.filenames_new_loaded[0:10]
 
                 with xr.open_mfdataset(self.filenames_new_loaded, group="Partector",
                                        combine="nested",
                                        preprocess=lambda ds: ds.isel(time=ds['time.year'] > 2000)) as ds:
-                    if ds.sizes["time"] > 200000:
-                        print("Time range too big ", ds.sizes["time"], "timestamps")
-                        functionreturn = -1
-                    elif ds.sizes["time"] > 100000:
-                        print("More than 100000 points (", ds.sizes["time"], "timestamps) -> plot 600s averages")
-                        self.averaging = 60 * 5
-                        avgs = ds.sortby(ds.time).resample(time='600s').mean()
-                        functionreturn["partector"] = avgs
-                    elif ds.sizes["time"] > 30000:
-                        print("More than 30000 points (", ds.sizes["time"], "timestamps) -> 60s averages")
-                        self.averaging = 60
-                        avgs = ds.sortby(ds.time).resample(time='60s').mean()
-                        functionreturn["partector"] = avgs
-                    elif ds.sizes["time"] > 5000:
-                        print("More than 5000 points (", ds.sizes["time"], "timestamps) -> 15s averages")
-                        self.averaging = 15
-                        # avgs = ds.sortby(ds.time).resample(time='15s').mean()
-                        # functionreturn["partector"] = avgs
-                        functionreturn["partector"] = ds
-                    else:
-                        print("Less than 5000 points (", ds.sizes["time"], "timestamps) -> no averages")
-                        functionreturn["partector"] = ds
+                    functionreturn["partector"] = ds
                     print("Downloaded Partector data", ds)
 
                 with xr.open_mfdataset(self.filenames_new_loaded, group="Microphone",
                                        combine="nested",
                                        preprocess=lambda ds: ds.isel(time=ds['time.year'] > 2000)) as ds:
-                    if ds.sizes["time"] > 200000:
-                        print("Time range too big ", ds.sizes["time"], "timestamps")
-                        functionreturn = -1
-                    elif ds.sizes["time"] > 100000:
-                        print("More than 100000 points -> plot 600s averages", ds.sizes["time"], "timestamps")
-                        self.averaging = 60 * 5
-                        avgs = ds.sortby(ds.time).resample(time='600s').mean()
-                        functionreturn["microphone"] = avgs
-                    elif ds.sizes["time"] > 30000:
-                        print("More than 30000 points -> 60s averages", ds.sizes["time"], "timestamps")
-                        self.averaging = 60
-                        avgs = ds.sortby(ds.time).resample(time='60s').mean()
-                        functionreturn["microphone"] = avgs
-                    elif ds.sizes["time"] > 5000:
-                        print("More than 5000 points -> 15s averages", ds.sizes["time"], "timestamps")
-                        self.averaging = 15
-                        # avgs = ds.sortby(ds.time).resample(time='15s').mean()
-                        # functionreturn["microphone"] = avgs
-                        functionreturn["microphone"] = ds
-                    else:
-                        print("Less than 5000 points -> no averages", ds.sizes["time"], "timestamps")
-                        functionreturn["microphone"] = ds
-
+                    functionreturn["microphone"] = ds
                     print("Downloaded Microphone data", ds)
-                return functionreturn
+                    return functionreturn
+                #bei gewissen sachen laden: Process finished with exit code -1073740791 (0xC0000409)
+                #    raise ValueError(ValueError: cannot reindex or align along dimension 'time' because the (pandas) index has duplicate values
 
             else:
                 print("funct load_data: Data already loaded -> no new download")
@@ -231,12 +192,6 @@ class Ui_MainWindow(QMainWindow):
             return -1
 
     def update_plot(self,whichplot):
-        if whichplot == "plot1":
-            measurement = "microphone"
-            datatoplot = ["Amplitude"]
-        else:
-            measurement = "partector"
-            datatoplot = self.plotinfo[whichplot]["selected_line"]
         # initialize change with new boundaries
         print("update plot from " + self.startend["starttime"].strftime("%Y.%m.%d %H-%M-%S") + " to " +
               self.startend[
@@ -250,7 +205,20 @@ class Ui_MainWindow(QMainWindow):
         axis.set_xlim(self.startend["starttime"], self.startend["endtime"])
         axis.grid()
         axis.set_xlabel("local time")
-        custom_cycler = (cycler(color=['r', 'b', 'm', 'g']))
+
+        if whichplot == "plot1":
+            measurement = "microphone"
+            datatoplot = ["Amplitude"]
+            custom_cycler = (cycler(color=['tab:blue']))
+            axis.axhline(y=80,color = 'tab:red')
+        else:
+            measurement = "partector"
+            datatoplot = self.plotinfo[whichplot]["selected_line"]
+            color = [color for (i,color) in enumerate(['tab:orange', 'tab:green', 'tab:red']) if self.measured_variables[i] in datatoplot]
+            print(color)
+            custom_cycler = (cycler(color=color))
+
+        axis.set_prop_cycle(custom_cycler)
         # short time plotting#
         if self.data != -1:
             print(f"Plotting with {self.averaging}s averaging")
