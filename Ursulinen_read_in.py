@@ -615,14 +615,11 @@ class MainWindow(QMainWindow):
         # this happens at the end of the file
         if self.part.number_downloads_onefile % self.part.save_newfile_ndatapoints == 0:
             #update flight data and save it
-            self.flight.data["arrivals"]["values"].to_netcdf(self.save_file_current_path, group="flight_arrivals_times", engine="netcdf4", mode="a")
-            self.flight.data["arrivals"]["strings"].to_netcdf(self.save_file_current_path, group="flight_arrivals_info", engine="netcdf4", mode="a")
-            self.flight.data["departures"]["values"].to_netcdf(self.save_file_current_path, group="flight_departures_times", engine="netcdf4",mode="a")
-            self.flight.data["departures"]["strings"].to_netcdf(self.save_file_current_path, group="flight_departures_info", engine="netcdf4",mode="a")
-            print("..saved flight data")
-
             self.flight.data = self.flight.get_flightdata()
 
+            self.flight.data["arrivals"].to_netcdf(self.save_file_current_path, group="flight_arrivals", engine="netcdf4", mode="a")
+            self.flight.data["departures"].to_netcdf(self.save_file_current_path, group="flight_departures", engine="netcdf4",mode="a")
+            print("..saved flight data")
 
             #make a new file
             self.save_file_current_inital_time = datetime.datetime.now()
@@ -658,23 +655,23 @@ class MainWindow(QMainWindow):
                 axis.plot(avgs.time, avgs.sel(measured_variable=datatoplot), color=color)
 
             if measurement.data.attrs["Measurement"] == "Microphone":
-                # #making background color
-                timetrue = measurement.data.where(measurement.data.time > np.datetime64(self.plottiming["begin"]),
-                                                  drop=True) < self.amp_threshold
-                timetrue = np.array([1 if i else 0 for i in timetrue])
-                firsttime = pd.to_datetime(measurement.data.time[0].values)
-                norm = matplotlib.pyplot.Normalize(0, 1)
-                if firsttime > self.plottiming["begin"]:
-
-                    x_axislimit1, x_axislimit2 = axis.get_xlim()
-                    seconds_to_firstpoint = datetime.datetime.now() - firsttime
-                    x_axislimit1 = x_axislimit2 - (x_axislimit2 - x_axislimit1) * (
-                        seconds_to_firstpoint.total_seconds()) / self.secondsback
-                    axis.pcolorfast((x_axislimit1, x_axislimit2), axis.get_ylim(), timetrue[np.newaxis], cmap='RdYlGn',
-                                    norm=norm, alpha=0.3)
-                else:
-                    axis.pcolorfast(axis.get_xlim(), axis.get_ylim(), timetrue[np.newaxis], cmap='RdYlGn', norm=norm,
-                                    alpha=0.3)
+                # # #making background color
+                # timetrue = measurement.data.where(measurement.data.time > np.datetime64(self.plottiming["begin"]),
+                #                                   drop=True) < self.amp_threshold
+                # timetrue = np.array([1 if i else 0 for i in timetrue])
+                # firsttime = pd.to_datetime(measurement.data.time[0].values)
+                # norm = matplotlib.pyplot.Normalize(0, 1)
+                # if firsttime > self.plottiming["begin"]:
+                #
+                #     x_axislimit1, x_axislimit2 = axis.get_xlim()
+                #     seconds_to_firstpoint = datetime.datetime.now() - firsttime
+                #     x_axislimit1 = x_axislimit2 - (x_axislimit2 - x_axislimit1) * (
+                #         seconds_to_firstpoint.total_seconds()) / self.secondsback
+                #     axis.pcolorfast((x_axislimit1, x_axislimit2), axis.get_ylim(), timetrue[np.newaxis], cmap='RdYlGn',
+                #                     norm=norm, alpha=0.3)
+                # else:
+                #     axis.pcolorfast(axis.get_xlim(), axis.get_ylim(), timetrue[np.newaxis], cmap='RdYlGn', norm=norm,
+                #                     alpha=0.3)
                 axis.axhline(y=self.amp_threshold)
                 axis.legend(["Amplitude Mikrophon"])
                 axis.set_ylabel(r"[$dB$]")
@@ -685,17 +682,17 @@ class MainWindow(QMainWindow):
                times = self.flight.data[arrdep].time.sel(time = selectedtime).values
 
                if arrdep == "arrivals":
-                   strings = ["flug" , self.flight.data[arrdep].sel(flightdata = "callsign").sel(time = selectedtime).values[i] +" von "+
+                   strings = ["Flug " + self.flight.data[arrdep].sel(flightdata = "callsign").sel(time = selectedtime).values[i] +" von "+
                               self.flight.data[arrdep].sel(flightdata = "origin").sel(time = selectedtime).values[i]
                                 for i in range(0,self.flight.data[arrdep].sel(time = selectedtime).shape[0])]
-               else:
-                   strings = ["flug", self.flight.data[arrdep].sel(flightdata = "callsign").sel(time = selectedtime).values[i] +" to "+
-                              self.flight.data[arrdep].sel(flightdata = "origin").sel(time = selectedtime).values[i]
+               if arrdep == "departures":
+                   strings = ["Flug"+ self.flight.data[arrdep].sel(flightdata = "callsign").sel(time = selectedtime).values[i] +" nach "+
+                              self.flight.data[arrdep].sel(flightdata = "destination").sel(time = selectedtime).values[i]
                                      for i in range(0,self.flight.data[arrdep].sel(time = selectedtime).shape[0])]
                for time, string in zip(times, strings):
                     axis.axvline(x = time, color='r')
-                    if datatoplot == "number_conc":
-                        axis.text(time, 5, string, rotation=90)
+                    if datatoplot == "diameter":
+                        axis.text(time, 1, string, rotation=90)
                print("Plot ", arrdep, "timestamps at", times)
 
             axis.legend([datatoplot])
@@ -703,7 +700,11 @@ class MainWindow(QMainWindow):
                 axis.set_ylabel(r"[$ Teilchen/cm^3$]")
                 axis.legend(["Anzahldichte Aerosolpartikel"])
 
+            elif datatoplot == "Amplitude":
+                axis.set_ylabel(r"[$dB$]")
+                axis.legend(["Lautstärke vom Dach"])
             else:
+
                 axis.set_ylabel(r"[$nm$]")
                 axis.legend(["Durchmesser Aerosolpartikel"])
                 axis.set_xlabel("local time")
