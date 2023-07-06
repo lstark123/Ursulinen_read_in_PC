@@ -455,8 +455,8 @@ class MplCanvas(FigureCanvas):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.save_location = str(QFileDialog.getExistingDirectory(self, "Wo speicher ich die Daten hin?"))
-        # self.save_location = r"C:\Users\peaq\Uniarbeit\data"
+        #self.save_location = str(QFileDialog.getExistingDirectory(self, "Wo speicher ich die Daten hin?"))
+        self.save_location = r"C:/Users/ag_hansel/Documents/Ursulinen_data"
         self.date_save_location = os.path.join(self.save_location, datetime.date.today().strftime("%Y_%m_%d"))
         if not(os.path.exists(self.date_save_location)):
             os.mkdir(self.date_save_location)
@@ -671,20 +671,20 @@ class MainWindow(QMainWindow):
                                 alpha=0.3)
 
             #make the flight time y axis
-            for arrdep in ["arrivals","departures"]:
-                times =[datetime.datetime.fromtimestamp(self.flight.data[arrdep]["values"].sel(flightdata = "estimated_UNIX").values[i])
-                        if self.flight.data[arrdep]["values"].sel(flightdata = "estimated_UNIX").values[i]!= 0
-                        else datetime.datetime.fromtimestamp(self.flight.data[arrdep]["values"].sel(flightdata = "scheduled_UNIX").values[i])
-                        for i in range(0,self.flight.data[arrdep]["values"].shape[0])]
-                if arrdep == "arrivals":
-                    strings = [self.flight.data[arrdep]["strings"].sel(flightdata = "callsign").values[i] +" from "+ self.flight.data["arrivals"]["strings"].sel(flightdata = "origin").values[i]
-                                      for i in range(0,self.flight.data[arrdep]["strings"].shape[0])]
-                else:
-                    strings = [self.flight.data[arrdep]["strings"].sel(flightdata = "callsign").values[i] +" to "+ self.flight.data["arrivals"]["strings"].sel(flightdata = "origin").values[i]
-                                      for i in range(0,self.flight.data[arrdep]["strings"].shape[0])]
-                for time, string in zip(times, strings):
-                    axis.axvline(x = time, color='r')
-                    axis.text(time, 5, string, rotation=90)
+            #for arrdep in ["arrivals","departures"]:
+            #    times =[datetime.datetime.fromtimestamp(self.flight.data[arrdep]["values"].sel(flightdata = "estimated_UNIX").values[i])
+            #            if self.flight.data[arrdep]["values"].sel(flightdata = "estimated_UNIX").values[i]!= 0
+            #            else datetime.datetime.fromtimestamp(self.flight.data[arrdep]["values"].sel(flightdata = "scheduled_UNIX").values[i])
+            #            for i in range(0,self.flight.data[arrdep]["values"].shape[0])]
+            #    if arrdep == "arrivals":
+            #        strings = [self.flight.data[arrdep]["strings"].sel(flightdata = "callsign").values[i] +" from "+ self.flight.data["arrivals"]["strings"].sel(flightdata = "origin").values[i]
+            #                          for i in range(0,self.flight.data[arrdep]["strings"].shape[0])]
+            #    else:
+            #        strings = [self.flight.data[arrdep]["strings"].sel(flightdata = "callsign").values[i] +" to "+ self.flight.data["arrivals"]["strings"].sel(flightdata = "origin").values[i]
+            #                          for i in range(0,self.flight.data[arrdep]["strings"].shape[0])]
+            #    for time, string in zip(times, strings):
+            #        axis.axvline(x = time, color='r')
+            #        axis.text(time, 5, string, rotation=90)
 
 
 
@@ -714,14 +714,14 @@ class MainWindow(QMainWindow):
                 avgs = exclude_default_data.sortby(exclude_default_data.time).resample(time='15s').mean()
                 axis.plot(avgs.time, avgs.sel(measured_variable=datatoplot), color=color)
 
-            for arrdep in ["arrivals","departures"]:
-                times =[datetime.datetime.fromtimestamp(self.flight.data[arrdep]["values"].sel(flightdata = "estimated_UNIX").values[i])
-                        if self.flight.data[arrdep]["values"].sel(flightdata = "estimated_UNIX").values[i]!= 0
-                        else datetime.datetime.fromtimestamp(self.flight.data[arrdep]["values"].sel(flightdata = "scheduled_UNIX").values[i])
-                        for i in range(0,self.flight.data[arrdep]["values"].shape[0])]
-                for time in times:
-                    axis.axvline(x = time, color='r')
-                print(times)
+            #for arrdep in ["arrivals","departures"]:
+            #    times =[datetime.datetime.fromtimestamp(self.flight.data[arrdep]["values"].sel(flightdata = "estimated_UNIX").values[i])
+            #            if self.flight.data[arrdep]["values"].sel(flightdata = "estimated_UNIX").values[i]!= 0
+            #            else datetime.datetime.fromtimestamp(self.flight.data[arrdep]["values"].sel(flightdata = "scheduled_UNIX").values[i])
+            #            for i in range(0,self.flight.data[arrdep]["values"].shape[0])]
+            #    for time in times:
+            #        axis.axvline(x = time, color='r')
+            #    print(times)
 
             axis.legend([datatoplot])
             if datatoplot == "number_conc":
