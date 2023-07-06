@@ -223,16 +223,15 @@ class Flightdata():
                                 "aircraftmodel": np.array([]),
                                 "callsign": np.array([])}
         for flight in flightdata_array:
-            for z in ["scheduled", "estimated"]:
-                try:
-                    date = flight["flight"]["time"][z][arrival_or_departure + "_date"]
-                    time = flight["flight"]["time"][z][arrival_or_departure + "_time"]
-                    flight_movement_time = (pd.to_datetime(date+time , format='%Y%m%d%H%M') -pd.Timedelta(2, "H") )
-                    flight_movement_info[z+"_UNIX"] = np.append(flight_movement_info[z+"_UNIX"], flight_movement_time.timestamp())
-                    if z == "scheduled":
-                        flight_movement_info[z] = np.append(flight_movement_info[z], flight_movement_time)
-                except:
-                    flight_movement_info[z+"_UNIX"] = np.append(flight_movement_info[z+"_UNIX"], 0)
+            try:
+                date = flight["flight"]["time"]["estimated"][arrival_or_departure + "_date"]
+                time = flight["flight"]["time"]["estimated"][arrival_or_departure + "_time"]
+                # flight_movement_time = (pd.to_datetime(date+time , format='%Y%m%d%H%M') -pd.Timedelta(2, "H") )
+                # flight_movement_info[z+"_UNIX"] = np.append(flight_movement_info[z+"_UNIX"], flight_movement_time.timestamp())
+                flight_movement_time = pd.to_datetime(date + time, format='%Y%m%d%H%M')
+                flight_movement_info["scheduled"] = np.append(flight_movement_info["scheduled"], flight_movement_time)
+            except:
+                flight_movement_info[z+"_UNIX"] = np.append(flight_movement_info[z+"_UNIX"], 0)
             for z in ["origin", "destination"]:
                 try:
                     flight_place = flight["flight"]["airport"][z]["code"]["iata"]
@@ -466,7 +465,7 @@ class MainWindow(QMainWindow):
         print(f"Saving data at {self.save_location}")
 
         self.comportpartector = self.dialogue_select_comport()
-        self.part = Partector(self.comportpartector )
+        self.part = Partector(self.comportpartector)
         self.mic = Microphone()
         self.flight = Flightdata()
 
@@ -633,7 +632,7 @@ class MainWindow(QMainWindow):
 
 
 
-    def update_plot_mic(self,axis,measurement,datatoplot, color):
+    def update_plot(self,axis,measurement,datatoplot, color):
         try:
             #initialize change with new boundaries
             axis.cla()
@@ -641,12 +640,14 @@ class MainWindow(QMainWindow):
             upperlim_plot = current_time + datetime.timedelta(seconds=self.secondsback/6)
             time_intervall_back = current_time - datetime.timedelta(seconds=self.secondsback)
             axis.set_xlim(time_intervall_back, upperlim_plot)
+            exclude_default_data = measurement.data.where(measurement.data['time.year'] > 2000, drop=True)
+            axis.set_ylim([0, max(exclude_default_data.sel(measured_variable=datatoplot).values)*1.1])
             axis.grid()
             axis.set_xlabel("local time")
 
             # short time plotting
             if self.secondsback <= 5 * 60:
-                axis.plot(measurement.data.time, measurement.data.sel(measured_variable=datatoplot),color = color)
+                axis.plot(exclude_default_data.time, exclude_default_data.sel(measured_variable=datatoplot), color=color)
 
 
             #plotting with averages for longer time periods
@@ -656,53 +657,62 @@ class MainWindow(QMainWindow):
                 avgs = exclude_default_data.sortby(exclude_default_data.time).resample(time='15s').mean()
                 axis.plot(avgs.time, avgs.sel(measured_variable=datatoplot), color=color)
 
-            # #making background color
-            timetrue = measurement.data.where(measurement.data.time > np.datetime64(time_intervall_back),
-                                              drop=True) < self.amp_threshold
-            timetrue = np.array([1 if i else 0 for i in timetrue])
-            firsttime = pd.to_datetime(measurement.data.time[0].values)
-            norm = matplotlib.pyplot.Normalize(0, 1)
-            if firsttime > time_intervall_back:
+            if measurement.data.attrs["Measurement"] == "Microphone":
+                # #making background color
+                timetrue = measurement.data.where(measurement.data.time > np.datetime64(time_intervall_back),
+                                                  drop=True) < self.amp_threshold
+                timetrue = np.array([1 if i else 0 for i in timetrue])
+                firsttime = pd.to_datetime(measurement.data.time[0].values)
+                norm = matplotlib.pyplot.Normalize(0, 1)
+                if firsttime > time_intervall_back:
 
-                x_axislimit1, x_axislimit2 = axis.get_xlim()
-                seconds_to_firstpoint = current_time - firsttime
-                x_axislimit1 = x_axislimit2 - (x_axislimit2 - x_axislimit1) * (
-                    seconds_to_firstpoint.total_seconds()) / self.secondsback
-                axis.pcolorfast((x_axislimit1, x_axislimit2), axis.get_ylim(), timetrue[np.newaxis], cmap='RdYlGn',
-                                norm=norm, alpha=0.3)
-            else:
-                axis.pcolorfast(axis.get_xlim(), axis.get_ylim(), timetrue[np.newaxis], cmap='RdYlGn', norm=norm,
-                                alpha=0.3)
+                    x_axislimit1, x_axislimit2 = axis.get_xlim()
+                    seconds_to_firstpoint = current_time - firsttime
+                    x_axislimit1 = x_axislimit2 - (x_axislimit2 - x_axislimit1) * (
+                        seconds_to_firstpoint.total_seconds()) / self.secondsback
+                    axis.pcolorfast((x_axislimit1, x_axislimit2), axis.get_ylim(), timetrue[np.newaxis], cmap='RdYlGn',
+                                    norm=norm, alpha=0.3)
+                else:
+                    axis.pcolorfast(axis.get_xlim(), axis.get_ylim(), timetrue[np.newaxis], cmap='RdYlGn', norm=norm,
+                                    alpha=0.3)
+                axis.axhline(y=self.amp_threshold)
+                axis.legend(["Amplitude Mikrophon"])
+                axis.set_ylabel(r"[$dB$]")
 
             # make the flight time y axis
             selectedtime = slice(np.datetime64('now') - np.timedelta64(1, 'h'), np.datetime64('now'))
             for arrdep in ["arrivals","departures"]:
-               times =[datetime.date.fromtimestamp(x) for x in
-                       self.flight.data["arrivals"]["values"].sel(flightdata = "scheduled_UNIX").sel(scheduledtime = selectedtime).values]
+               times =[datetime.datetime.fromtimestamp(x) for x in
+                       self.flight.data[arrdep]["values"].sel(flightdata = "scheduled_UNIX").sel(scheduledtime = selectedtime).values]
 
                if arrdep == "arrivals":
                    strings = [self.flight.data[arrdep]["strings"].sel(flightdata = "callsign").sel(scheduledtime = selectedtime).values[i] +" from "+
-                              self.flight.data["arrivals"]["strings"].sel(flightdata = "origin").sel(scheduledtime = selectedtime).values[i]
+                              self.flight.data[arrdep]["strings"].sel(flightdata = "origin").sel(scheduledtime = selectedtime).values[i]
                                 for i in range(0,self.flight.data[arrdep]["strings"].sel(scheduledtime = selectedtime).shape[0])]
                else:
                    strings = [self.flight.data[arrdep]["strings"].sel(flightdata = "callsign").sel(scheduledtime = selectedtime).values[i] +" to "+
-                              self.flight.data["arrivals"]["strings"].sel(flightdata = "origin").sel(scheduledtime = selectedtime).values[i]
+                              self.flight.data[arrdep]["strings"].sel(flightdata = "origin").sel(scheduledtime = selectedtime).values[i]
                                      for i in range(0,self.flight.data[arrdep]["strings"].sel(scheduledtime = selectedtime).shape[0])]
                for time, string in zip(times, strings):
                     axis.axvline(x = time, color='r')
                     axis.text(time, 5, string, rotation=90)
                print("Plot ", arrdep, "timestamps at", times)
 
+            axis.legend([datatoplot])
+            if datatoplot == "number_conc":
+                axis.set_ylabel(r"[$ Teilchen/cm^3$]")
+                axis.legend(["Anzahldichte Aerosolpartikel"])
 
+            else:
+                axis.set_ylabel(r"[$nm$]")
+                axis.legend(["Durchmesser Aerosolpartikel"])
+                axis.set_xlabel("local time")
 
-            axis.axhline(y=self.amp_threshold)
-            axis.legend(["Amplitude Mikrophon"])
-            axis.set_ylabel(r"[$dB$]")
             self.canvas.draw()
         except:
-            print("...Could not plot Microphone data")
+            print("...Could no plot ", datatoplot, " data")
 
-    def update_plot(self,axis,measurement,datatoplot, color):
+    def update_plot_old(self,axis,measurement,datatoplot, color):
         try:
             # initialize change with new boundaries
             axis.cla()
@@ -711,6 +721,7 @@ class MainWindow(QMainWindow):
             axis.grid()
             exclude_default_data = measurement.data.where(measurement.data['time.year'] > 2000, drop=True)
             axis.set_ylim([min(exclude_default_data.sel(measured_variable=datatoplot).values)*0.9, max(exclude_default_data.sel(measured_variable=datatoplot).values)*1.1])
+
 
             # short time plotting
             if self.secondsback <= 5 * 60:
@@ -765,7 +776,7 @@ class MainWindow(QMainWindow):
 
             self.update_plot(self.canvas.ax3, self.part, "diameter", color='C0')
             self.update_plot(self.canvas.ax2, self.part, "number_conc", color='C1')
-            self.update_plot_mic(self.canvas.ax1,self.mic,"Amplitude",color='C3')
+            self.update_plot(self.canvas.ax1,self.mic,"Amplitude",color='C3')
 
         worker = Worker(update_plot_all)
         self.threadpool.start(worker)
