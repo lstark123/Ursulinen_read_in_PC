@@ -623,6 +623,7 @@ class MainWindow(QMainWindow):
         if self.part.number_downloads_onefile % self.part.save_newfile_ndatapoints == 0:
             #update flight data and save it
             self.flight.data = self.flight.get_flightdata()
+
             self.weather.data = self.weather.get_data()
 
             time.sleep(10)
@@ -632,6 +633,10 @@ class MainWindow(QMainWindow):
 
             self.weather.data.to_netcdf(self.save_file_current_path, group="Weather", engine="netcdf4", mode="a")
 
+
+            self.flight.data["arrivals"].to_netcdf(self.save_file_current_path, group="flight_arrivals", engine="netcdf4", mode="a")
+            self.flight.data["departures"].to_netcdf(self.save_file_current_path, group="flight_departures", engine="netcdf4",mode="a")
+            print("..saved flight data")
 
             #make a new file
             self.save_file_current_inital_time = datetime.datetime.now()
