@@ -14,6 +14,7 @@ import datetime
 import numpy as np
 from bs4 import BeautifulSoup as BS
 from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
 import time
 import sounddevice as sd
 import traceback
@@ -32,7 +33,7 @@ class Measurement:
     def __init__(self):
         self.initial_time = datetime.datetime.now()
         self.time = np.array(self.initial_time)
-        self.save_newfile_ndatapoints = 60*60
+        self.save_newfile_ndatapoints = 30
         print(f"Saving every second in {self.save_newfile_ndatapoints} seconds files")
         self.total_n_updates = 0
 
@@ -287,13 +288,14 @@ class Weatherdata(Measurement):
         # now with default values
         super().__init__()
         # Set the absolute path to chromedriver
-
-
-        self.chromedrive_path = r"C:\Users\peaq\AppData\Local\Google\Chrome\chromedriver.exe"
+        self.service = Service(r"C:\Users\peaq\AppData\Local\Google\Chrome\chromedriver14_win32\chromedriver.exe")
+        self.options = webdriver.ChromeOptions()
+        # driver = webdriver.Chrome(service=service, options=options)
+        # self.chromedrive_path = r"C:\Users\peaq\AppData\Local\Google\Chrome\chromedriver.exe"
         self.data = self.get_data()
 
     def render_page(self, url):
-        driver = webdriver.Chrome(self.chromedrive_path)
+        driver = webdriver.Chrome(service=self.service, options=self.options)
         driver.get(url)
         time.sleep(3)  # Could potentially decrease the sleep time
         r = driver.page_source
@@ -364,12 +366,16 @@ class Weatherdata(Measurement):
         timestamps = ['%s %s' % (date, t) for t in hours]
 
         data_array = np.concatenate((data1_array, data2_array), axis=1)  # concat data 1 and 2
+        columns = columns1 + columns2
+        #to xarray
+        weatherdata = xr.DataArray(
+            data_array,
+            coords={"time": timestamps,
+                    "weatherdata": columns},
+            dims=["time", "weatherdata"])
 
-        # Convert to dataframe
-        df = pd.DataFrame(index=timestamps, data=data_array, columns=columns1 + columns2)
-        df.index = pd.to_datetime(df.index)
+        return weatherdata
 
-        return df
 
 #Workers for multithreading
 class WorkerSignals(QObject):
@@ -470,6 +476,7 @@ class MainWindow(QMainWindow):
         self.part = Partector(self.comportpartector)
         self.mic = Microphone()
         self.flight = Flightdata()
+        self.weather = Weatherdata()
 
         #get cutout seconds which are plotted back
         self.secondsback = 60
@@ -616,10 +623,15 @@ class MainWindow(QMainWindow):
         if self.part.number_downloads_onefile % self.part.save_newfile_ndatapoints == 0:
             #update flight data and save it
             self.flight.data = self.flight.get_flightdata()
+            self.weather.data = self.weather.get_data()
 
-            self.flight.data["arrivals"].to_netcdf(self.save_file_current_path, group="flight_arrivals", engine="netcdf4", mode="a")
-            self.flight.data["departures"].to_netcdf(self.save_file_current_path, group="flight_departures", engine="netcdf4",mode="a")
+            time.sleep(10)
+            self.flight.data["arrivals"].to_netcdf(self.save_file_current_path, group="Flight_arrivals", engine="netcdf4", mode="a")
+            self.flight.data["departures"].to_netcdf(self.save_file_current_path, group="Flight_departures", engine="netcdf4",mode="a")
             print("..saved flight data")
+
+            self.weather.data.to_netcdf(self.save_file_current_path, group="Weather", engine="netcdf4", mode="a")
+
 
             #make a new file
             self.save_file_current_inital_time = datetime.datetime.now()
