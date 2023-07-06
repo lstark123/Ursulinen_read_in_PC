@@ -215,9 +215,8 @@ class Flightdata():
         self.data = self.get_flightdata()
 
     def extract_relevant_data(self, flightdata_array, arrival_or_departure):
-        flight_movement_info = {"scheduled_UNIX": np.array([]),
-                                "scheduled": np.array([]),
-                                "estimated_UNIX": np.array([]),
+        flight_movement_info = {"time": np.array([]),
+                                "status" : np.array([]),
                                 "origin": np.array([]),
                                 "destination": np.array([]),
                                 "aircraftmodel": np.array([]),
@@ -226,12 +225,19 @@ class Flightdata():
             try:
                 date = flight["flight"]["time"]["estimated"][arrival_or_departure + "_date"]
                 time = flight["flight"]["time"]["estimated"][arrival_or_departure + "_time"]
-                # flight_movement_time = (pd.to_datetime(date+time , format='%Y%m%d%H%M') -pd.Timedelta(2, "H") )
-                # flight_movement_info[z+"_UNIX"] = np.append(flight_movement_info[z+"_UNIX"], flight_movement_time.timestamp())
                 flight_movement_time = pd.to_datetime(date + time, format='%Y%m%d%H%M')
-                flight_movement_info["scheduled"] = np.append(flight_movement_info["scheduled"], flight_movement_time)
+                flight_movement_info["time"] = np.append(flight_movement_info["time"], flight_movement_time)
             except:
-                flight_movement_info[z+"_UNIX"] = np.append(flight_movement_info[z+"_UNIX"], 0)
+                try:
+                    date = flight["flight"]["time"]["real"][arrival_or_departure + "_date"]
+                    time = flight["flight"]["time"]["real"][arrival_or_departure + "_time"]
+                    flight_movement_time = pd.to_datetime(date + time, format='%Y%m%d%H%M')
+                    flight_movement_info["time"] = np.append(flight_movement_info["time"], flight_movement_time)
+                except:
+                    date = flight["flight"]["time"]["scheduled"][arrival_or_departure + "_date"]
+                    time = flight["flight"]["time"]["scheduled"][arrival_or_departure + "_time"]
+                    flight_movement_time = pd.to_datetime(date + time, format='%Y%m%d%H%M')
+                    flight_movement_info["time"] = np.append(flight_movement_info["time"], flight_movement_time)
             for z in ["origin", "destination"]:
                 try:
                     flight_place = flight["flight"]["airport"][z]["code"]["iata"]
@@ -243,24 +249,21 @@ class Flightdata():
                                                                   flight["flight"]["aircraft"]["model"]["text"])
                 flight_movement_info["callsign"] = np.append(flight_movement_info["callsign"],
                                                              flight["flight"]["identification"]["callsign"])
+                flight_movement_info["status"] = np.append(flight_movement_info["status"],
+                                                             flight["flight"]["status"]["text"])
+
             except:
                 flight_movement_info["aircraftmodel"] = np.append(flight_movement_info["aircraftmodel"], "")
                 flight_movement_info["callsign"] = np.append(flight_movement_info["callsign"], "")
 
         flight_movement_info = pd.DataFrame(flight_movement_info)
 
-        strings = xr.DataArray(
-            flight_movement_info.loc[:,["origin","destination","aircraftmodel","callsign"]].values,
-            coords={"scheduledtime": flight_movement_info.scheduled,
-                    "flightdata": flight_movement_info.loc[:,["origin","destination","aircraftmodel","callsign"]].columns.values},
-            dims=["scheduledtime", "flightdata"])
-        values = xr.DataArray(
-            flight_movement_info.loc[:,["scheduled_UNIX","estimated_UNIX"]].values,
-            coords={"scheduledtime": flight_movement_info.scheduled,
-                    "flightdata": flight_movement_info.loc[:,["scheduled_UNIX","estimated_UNIX"]].columns.values},
-            dims=["scheduledtime", "flightdata"])
+        flight_movement_info = xr.DataArray(
+            flight_movement_info.loc[:,["origin","destination","aircraftmodel","callsign","status"]].values,
+            coords={"time": flight_movement_info.time,
+                    "flightdata": flight_movement_info.loc[:,["origin","destination","aircraftmodel","callsign","status"]].columns.values},
+            dims=["time", "flightdata"])
 
-        flight_movement_info = {"strings":strings,"values":values}
         print("Extracted relevant information out of flight data response")
 
         return flight_movement_info
@@ -271,9 +274,8 @@ class Flightdata():
 
         arrivals = self.extract_relevant_data(arrivals_alldata, "arrival")
         departures = self.extract_relevant_data(departures_alldata, "departure")
-        for x in ["strings","values"]:
-            arrivals[x] = arrivals[x].sortby(arrivals[x].scheduledtime)
-            departures[x] = departures[x].sortby(departures[x].scheduledtime)
+        arrivals = arrivals.sortby(arrivals.time)
+        departures = departures.sortby(departures.time)
 
         flightdata = {"arrivals" : arrivals, "departures": departures}
         return flightdata
@@ -472,6 +474,7 @@ class MainWindow(QMainWindow):
         #get cutout seconds which are plotted back
         self.secondsback = 60
         self.amp_threshold = 80
+        self.plottiming = {"begin":0,"end":0}
 
         # update save file every n datapoints
         self.save_file_update_ndatapoints = 15
@@ -634,12 +637,9 @@ class MainWindow(QMainWindow):
 
     def update_plot(self,axis,measurement,datatoplot, color):
         try:
-            #initialize change with new boundaries
+        #initialize change with new boundaries
             axis.cla()
-            current_time = datetime.datetime.now()
-            upperlim_plot = current_time + datetime.timedelta(seconds=self.secondsback/6)
-            time_intervall_back = current_time - datetime.timedelta(seconds=self.secondsback)
-            axis.set_xlim(time_intervall_back, upperlim_plot)
+            axis.set_xlim(self.plottiming["begin"], self.plottiming["end"])
             exclude_default_data = measurement.data.where(measurement.data['time.year'] > 2000, drop=True)
             axis.set_ylim([0, max(exclude_default_data.sel(measured_variable=datatoplot).values)*1.1])
             axis.grid()
@@ -659,15 +659,15 @@ class MainWindow(QMainWindow):
 
             if measurement.data.attrs["Measurement"] == "Microphone":
                 # #making background color
-                timetrue = measurement.data.where(measurement.data.time > np.datetime64(time_intervall_back),
+                timetrue = measurement.data.where(measurement.data.time > np.datetime64(self.plottiming["begin"]),
                                                   drop=True) < self.amp_threshold
                 timetrue = np.array([1 if i else 0 for i in timetrue])
                 firsttime = pd.to_datetime(measurement.data.time[0].values)
                 norm = matplotlib.pyplot.Normalize(0, 1)
-                if firsttime > time_intervall_back:
+                if firsttime > self.plottiming["begin"]:
 
                     x_axislimit1, x_axislimit2 = axis.get_xlim()
-                    seconds_to_firstpoint = current_time - firsttime
+                    seconds_to_firstpoint = datetime.datetime.now() - firsttime
                     x_axislimit1 = x_axislimit2 - (x_axislimit2 - x_axislimit1) * (
                         seconds_to_firstpoint.total_seconds()) / self.secondsback
                     axis.pcolorfast((x_axislimit1, x_axislimit2), axis.get_ylim(), timetrue[np.newaxis], cmap='RdYlGn',
@@ -680,22 +680,22 @@ class MainWindow(QMainWindow):
                 axis.set_ylabel(r"[$dB$]")
 
             # make the flight time y axis
-            selectedtime = slice(np.datetime64('now') - np.timedelta64(1, 'h'), np.datetime64('now'))
+            selectedtime = slice(datetime.datetime.now()-datetime.timedelta(hours =1),datetime.datetime.now())
             for arrdep in ["arrivals","departures"]:
-               times =[datetime.datetime.fromtimestamp(x) for x in
-                       self.flight.data[arrdep]["values"].sel(flightdata = "scheduled_UNIX").sel(scheduledtime = selectedtime).values]
+               times = self.flight.data[arrdep].time.sel(time = selectedtime).values
 
                if arrdep == "arrivals":
-                   strings = [self.flight.data[arrdep]["strings"].sel(flightdata = "callsign").sel(scheduledtime = selectedtime).values[i] +" from "+
-                              self.flight.data[arrdep]["strings"].sel(flightdata = "origin").sel(scheduledtime = selectedtime).values[i]
-                                for i in range(0,self.flight.data[arrdep]["strings"].sel(scheduledtime = selectedtime).shape[0])]
+                   strings = ["flug" , self.flight.data[arrdep].sel(flightdata = "callsign").sel(time = selectedtime).values[i] +" von "+
+                              self.flight.data[arrdep].sel(flightdata = "origin").sel(time = selectedtime).values[i]
+                                for i in range(0,self.flight.data[arrdep].sel(time = selectedtime).shape[0])]
                else:
-                   strings = [self.flight.data[arrdep]["strings"].sel(flightdata = "callsign").sel(scheduledtime = selectedtime).values[i] +" to "+
-                              self.flight.data[arrdep]["strings"].sel(flightdata = "origin").sel(scheduledtime = selectedtime).values[i]
-                                     for i in range(0,self.flight.data[arrdep]["strings"].sel(scheduledtime = selectedtime).shape[0])]
+                   strings = ["flug", self.flight.data[arrdep].sel(flightdata = "callsign").sel(time = selectedtime).values[i] +" to "+
+                              self.flight.data[arrdep].sel(flightdata = "origin").sel(time = selectedtime).values[i]
+                                     for i in range(0,self.flight.data[arrdep].sel(time = selectedtime).shape[0])]
                for time, string in zip(times, strings):
                     axis.axvline(x = time, color='r')
-                    axis.text(time, 5, string, rotation=90)
+                    if datatoplot == "number_conc":
+                        axis.text(time, 5, string, rotation=90)
                print("Plot ", arrdep, "timestamps at", times)
 
             axis.legend([datatoplot])
@@ -711,49 +711,6 @@ class MainWindow(QMainWindow):
             self.canvas.draw()
         except:
             print("...Could no plot ", datatoplot, " data")
-
-    def update_plot_old(self,axis,measurement,datatoplot, color):
-        try:
-            # initialize change with new boundaries
-            axis.cla()
-            current_time = datetime.datetime.now()
-            axis.set_xlim(current_time - datetime.timedelta(seconds=self.secondsback), current_time)
-            axis.grid()
-            exclude_default_data = measurement.data.where(measurement.data['time.year'] > 2000, drop=True)
-            axis.set_ylim([min(exclude_default_data.sel(measured_variable=datatoplot).values)*0.9, max(exclude_default_data.sel(measured_variable=datatoplot).values)*1.1])
-
-
-            # short time plotting
-            if self.secondsback <= 5 * 60:
-                axis.plot(exclude_default_data.time, exclude_default_data.sel(measured_variable=datatoplot), color=color)
-
-            # plotting with averages for longer time periods
-            elif self.secondsback > 5 * 60:
-                avgs = exclude_default_data.sortby(exclude_default_data.time).resample(time='15s').mean()
-                axis.plot(avgs.time, avgs.sel(measured_variable=datatoplot), color=color)
-
-            #for arrdep in ["arrivals","departures"]:
-            #    times =[datetime.datetime.fromtimestamp(self.flight.data[arrdep]["values"].sel(flightdata = "estimated_UNIX").values[i])
-            #            if self.flight.data[arrdep]["values"].sel(flightdata = "estimated_UNIX").values[i]!= 0
-            #            else datetime.datetime.fromtimestamp(self.flight.data[arrdep]["values"].sel(flightdata = "scheduled_UNIX").values[i])
-            #            for i in range(0,self.flight.data[arrdep]["values"].shape[0])]
-            #    for time in times:
-            #        axis.axvline(x = time, color='r')
-            #    print(times)
-
-            axis.legend([datatoplot])
-            if datatoplot == "number_conc":
-                axis.set_ylabel(r"[$ Teilchen/cm^3$]")
-                axis.legend(["Anzahldichte Aerosolpartikel"])
-
-            else:
-                axis.set_ylabel(r"[$nm$]")
-                axis.legend(["Durchmesser Aerosolpartikel"])
-                axis.set_xlabel("local time")
-            self.canvas.draw()
-        except:
-            print("...Could no plot ", datatoplot, " data")
-
 
     def timer_onesec_funct_to_worker(self):
         def dowloads_saves():
@@ -773,7 +730,8 @@ class MainWindow(QMainWindow):
 
 
         def update_plot_all():
-
+            self.plottiming["begin"] = datetime.datetime.now() - datetime.timedelta(seconds=self.secondsback)
+            self.plottiming["end"] = datetime.datetime.now() + datetime.timedelta(seconds=self.secondsback/6)
             self.update_plot(self.canvas.ax3, self.part, "diameter", color='C0')
             self.update_plot(self.canvas.ax2, self.part, "number_conc", color='C1')
             self.update_plot(self.canvas.ax1,self.mic,"Amplitude",color='C3')
