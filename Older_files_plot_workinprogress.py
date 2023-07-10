@@ -75,8 +75,10 @@ class Ui_MainWindow(QMainWindow):
         #multithreading
         self.save_newfile_ndatapoints = 60*60 # 1 h files
         self.parentdir = r"E:\Uniarbeit\data_dach"
-        self.filenames_old_loaded = np.array([False])
-        self.filenames_new_loaded = np.array([False])
+        self.filenames = {"old_filenames":np.array([False]),
+                                     "old_time": np.array([False]),
+                                     "new_filenames": np.array([False]),
+                                     "new_times": np.array([False])}
         self.averaging = 1
         self.plotinfo = {'plot1':{'selected_line': ["microphone"], "logy": False,"axis": 1},
                          'plot2': {'selected_line': [], "logy": False,"axis": 2},
@@ -150,33 +152,35 @@ class Ui_MainWindow(QMainWindow):
 
 
     def load_data(self):
-        self.filenames_old_loaded = self.filenames_new_loaded
+        self.filenames["old_filenames"] = self.filenames["new_filenames"]
+        self.filenames["old_filenames"] = self.filenames["new_filenames"]
         file_length = datetime.timedelta(seconds=self.save_newfile_ndatapoints)
         filenames = np.array(glob.glob(self.parentdir + "\**\*.nc", recursive=True))
         files_datetimes = [Path(path).stem for path in filenames]
         files_datetimes = pd.to_datetime(files_datetimes, errors='coerce', format="%Y_%m_%d_%Hh%Mm%Ss")
         # preselect a range (afterwards more narrow selection)
-        self.filenames_new_loaded = filenames[np.where(
+        self.filenames["new_filenames"] = filenames[np.where(
             (self.startend["starttime"] < files_datetimes - file_length) & (files_datetimes < (self.startend["endtime"] + file_length)))]
-        print("filenames old ", self.filenames_old_loaded)
-        print("filenames new: ", self.filenames_new_loaded)
+        self.filenames["new_times"] = (self.startend["starttime"],self.startend["endtime"])
+        print("filenames old ", self.filenames["old_filenames"] )
+        print("filenames new: ", self.filenames["new_filenames"])
         functionreturn = {"microphone":[],
                           "partector" : []}
-        print("funct load_data : Load files with filepaths", self.filenames_new_loaded)
+        print("funct load_data : Load files with filepaths", self.filenames["new_filenames"])
 
         if self.filenames_new_loaded.size > 1:
-            if not np.array_equal(self.filenames_old_loaded, self.filenames_new_loaded):
-                if len(self.filenames_new_loaded) > 10:
+            if not np.array_equal(self.filenames["old_filenames"] , self.filenames["new_filenames"]):
+                if len(self.filenames["new_filenames"]) > 10:
                     print("Time range too big,only loading first 10 files")
-                    self.filenames_new_loaded = self.filenames_new_loaded[0:10]
+                    self.self.filenames["new_filenames"] = self.filenames["new_filenames"][0:10]
 
-                with xr.open_mfdataset(self.filenames_new_loaded, group="Partector",
+                with xr.open_mfdataset(self.filenames["new_filenames"], group="Partector",
                                        combine="nested",
                                        preprocess=lambda ds: ds.isel(time=ds['time.year'] > 2000)) as ds:
                     functionreturn["partector"] = ds
                     print("Downloaded Partector data", ds)
 
-                with xr.open_mfdataset(self.filenames_new_loaded, group="Microphone",
+                with xr.open_mfdataset(self.filenames["new_filenames"], group="Microphone",
                                        combine="nested",
                                        preprocess=lambda ds: ds.isel(time=ds['time.year'] > 2000)) as ds:
                     functionreturn["microphone"] = ds
