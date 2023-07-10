@@ -476,7 +476,7 @@ class MainWindow(QMainWindow):
         self.part = Partector(self.comportpartector)
         self.mic = Microphone()
         self.flight = Flightdata()
-        self.weather = Weatherdata()
+        # self.weather = Weatherdata()
 
         #get cutout seconds which are plotted back
         self.secondsback = 60
@@ -630,7 +630,7 @@ class MainWindow(QMainWindow):
             self.flight.data["departures"].to_netcdf(self.save_file_current_path, group="Flight_departures", engine="netcdf4",mode="a")
             print("..saved flight data")
 
-            self.weather.data.to_netcdf(self.save_file_current_path, group="Weather", engine="netcdf4", mode="a")
+            # self.weather.data.to_netcdf(self.save_file_current_path, group="Weather", engine="netcdf4", mode="a")
 
 
             #make a new file
