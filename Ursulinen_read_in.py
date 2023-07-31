@@ -62,11 +62,11 @@ class Partector(Measurement):
                            "????",
                            "Differential Pressure [Pa/240]",
                            "Lag (disregard)"])
-        self.n_values = 3
+        self.n_values = self.data_names.size
         self.data = xr.DataArray(
             np.full([self.save_newfile_ndatapoints, self.n_values],np.nan),
             coords = {"time": np.full(self.save_newfile_ndatapoints,datetime.datetime(2000,1,1)), #placeholder for time
-                      "measured_variable": ["LDSA", "diameter", "number_conc"]},
+                      "measured_variable": self.data_names},
             dims = ["time","measured_variable"]
 
         )
@@ -138,7 +138,7 @@ class Partector(Measurement):
                 newline = ser.readline()
                 newline = str(newline, 'utf-8').split('\t')
                 newline = [float(x) for x in newline]
-                return np.array(newline[13:16])
+                return np.array(newline)
             except:
                 print(f"Something went wrong with querying data form Partector")
                 ser.close()
@@ -713,7 +713,7 @@ class MainWindow(QMainWindow):
                print("Plot ", arrdep, "timestamps at", times)
 
             axis.legend([datatoplot])
-            if datatoplot == "number_conc":
+            if datatoplot == "Number [1/cm3]":
                 axis.set_ylabel(r"[$ Teilchen/cm^3$]")
                 axis.legend(["Anzahldichte Aerosolpartikel"])
 
@@ -750,8 +750,8 @@ class MainWindow(QMainWindow):
         def update_plot_all():
             self.plottiming["begin"] = datetime.datetime.now() - datetime.timedelta(seconds=self.secondsback)
             self.plottiming["end"] = datetime.datetime.now() + datetime.timedelta(seconds=self.secondsback/6)
-            self.update_plot(self.canvas.ax3, self.part, "diameter", color='C0')
-            self.update_plot(self.canvas.ax2, self.part, "number_conc", color='C1')
+            self.update_plot(self.canvas.ax3, self.part, "Diameter [nm]", color='C0')
+            self.update_plot(self.canvas.ax2, self.part, "Number [1/cm3]", color='C1')
             self.update_plot(self.canvas.ax1,self.mic,"Amplitude",color='C3')
 
         worker = Worker(update_plot_all)
