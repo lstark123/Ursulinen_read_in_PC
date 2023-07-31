@@ -33,7 +33,7 @@ class Measurement:
     def __init__(self):
         self.initial_time = datetime.datetime.now()
         self.time = np.array(self.initial_time)
-        self.save_newfile_ndatapoints = 30
+        self.save_newfile_ndatapoints = 60*60
         print(f"Saving every second in {self.save_newfile_ndatapoints} seconds files")
         self.total_n_updates = 0
 
@@ -288,7 +288,7 @@ class Weatherdata(Measurement):
         # now with default values
         super().__init__()
         # Set the absolute path to chromedriver
-        self.service = Service(r"C:\Users\peaq\AppData\Local\Google\Chrome\chromedriver14_win32\chromedriver.exe")
+        self.service = Service(r"C:\Users\c7441354\PycharmProjects\Ursulinen_read_in_PC\chromedriver_win32\chromedriver.exe")
         self.options = webdriver.ChromeOptions()
         # driver = webdriver.Chrome(service=service, options=options)
         # self.chromedrive_path = r"C:\Users\peaq\AppData\Local\Google\Chrome\chromedriver.exe"
@@ -322,60 +322,64 @@ class Weatherdata(Measurement):
         # Get the timestamps and data from two separate 'tbody' tags
         all_checks = container.find_all(
             'tbody')  # get the data in the tablebody (there are two tables, one with time, one with data)
-        time_check = all_checks[0]
-        data_check = all_checks[1]
 
-        # Iterate through 'tr' tags and get the timestamps
-        hours = []
-        for i in time_check.find_all('tr'):
-            trial = i.get_text()
-            hours.append(trial)
+        if all_checks:
+            time_check = all_checks[0]
+            data_check = all_checks[1]
 
-        # For data, locate both value and no-value ("--") classes
-        classes = ['wu-value wu-value-to', 'wu-unit-no-value ng-star-inserted']
+            # Iterate through 'tr' tags and get the timestamps
+            hours = []
+            for i in time_check.find_all('tr'):
+                trial = i.get_text()
+                hours.append(trial)
 
-        # Iterate through span tags and get data
-        data1 = []
+            # For data, locate both value and no-value ("--") classes
+            classes = ['wu-value wu-value-to', 'wu-unit-no-value ng-star-inserted']
 
-        for i in data_check.find_all('span', class_=classes):
-            trial = i.get_text()
-            data1.append(trial)
+            # Iterate through span tags and get data
+            data1 = []
 
-        columns1 = ['Temperature', 'Dew Point', 'Humidity', 'Wind Speed',
-                    'Wind Gust', 'Pressure', 'Precip. Rate', 'Precip. Accum.']
+            for i in data_check.find_all('span', class_=classes):
+                trial = i.get_text()
+                data1.append(trial)
 
-        # Convert NaN values (stings of '--') to np.nan
-        data1_nan = [np.nan if x == '--' else x for x in data1]
+            columns1 = ['Temperature', 'Dew Point', 'Humidity', 'Wind Speed',
+                        'Wind Gust', 'Pressure', 'Precip. Rate', 'Precip. Accum.']
 
-        # Convert list of data to an array
-        data1_array = np.array(data1_nan, dtype=float)
-        data1_array = data1_array.reshape(-1, len(columns1))
+            # Convert NaN values (stings of '--') to np.nan
+            data1_nan = [np.nan if x == '--' else x for x in data1]
 
-        data2 = data_check.find_all("strong")
-        data2 = [i.get_text() for i in data2]
-        data2 = [np.nan if x == '--' else x for x in data2]
+            # Convert list of data to an array
+            data1_array = np.array(data1_nan, dtype=float)
+            data1_array = data1_array.reshape(-1, len(columns1))
 
-        columns2 = ["Time", "Wind Dir", "UV", "Solar radiation"]
+            data2 = data_check.find_all("strong")
+            data2 = [i.get_text() for i in data2]
+            data2 = [np.nan if x == '--' else x for x in data2]
 
-        data2_array = np.array(data2)
-        data2_array = data2_array.reshape(-1, len(columns2))
-        data2_array = data2_array[:, 1:]  # erase the time column
-        columns2 = columns2[1:]
+            columns2 = ["Time", "Wind Dir", "UV", "Solar radiation"]
 
-        # Prepend date to HH:MM strings
-        timestamps = ['%s %s' % (date, t) for t in hours]
+            data2_array = np.array(data2)
+            data2_array = data2_array.reshape(-1, len(columns2))
+            data2_array = data2_array[:, 1:]  # erase the time column
+            columns2 = columns2[1:]
 
-        data_array = np.concatenate((data1_array, data2_array), axis=1)  # concat data 1 and 2
-        columns = columns1 + columns2
-        #to xarray
-        weatherdata = xr.DataArray(
-            data_array,
-            coords={"time": timestamps,
-                    "weatherdata": columns},
-            dims=["time", "weatherdata"])
+            # Prepend date to HH:MM strings
+            timestamps = ['%s %s' % (date, t) for t in hours]
 
-        return weatherdata
+            data_array = np.concatenate((data1_array, data2_array), axis=1)  # concat data 1 and 2
+            columns = columns1 + columns2
+            #to xarray
+            weatherdata = xr.DataArray(
+                data_array,
+                coords={"time": timestamps,
+                        "weatherdata": columns},
+                dims=["time", "weatherdata"])
 
+            return weatherdata
+        else:
+            print("No weatherdata for this time")
+            return  0
 
 #Workers for multithreading
 class WorkerSignals(QObject):
@@ -476,7 +480,8 @@ class MainWindow(QMainWindow):
         self.part = Partector(self.comportpartector)
         self.mic = Microphone()
         self.flight = Flightdata()
-        # self.weather = Weatherdata()
+        loadweatherdata = False
+        self.weather = Weatherdata()
 
         #get cutout seconds which are plotted back
         self.secondsback = 60
@@ -631,7 +636,7 @@ class MainWindow(QMainWindow):
             self.flight.data["departures"].to_netcdf(self.save_file_current_path, group="Flight_departures", engine="netcdf4",mode="a")
             print("..saved flight data")
 
-            # self.weather.data.to_netcdf(self.save_file_current_path, group="Weather", engine="netcdf4", mode="a")
+            self.weather.data.to_netcdf(self.save_file_current_path, group="Weather", engine="netcdf4", mode="a")
 
 
             self.flight.data["arrivals"].to_netcdf(self.save_file_current_path, group="flight_arrivals", engine="netcdf4", mode="a")
@@ -650,85 +655,85 @@ class MainWindow(QMainWindow):
 
 
     def update_plot(self,axis,measurement,datatoplot, color):
-        try:
+        #try:
         #initialize change with new boundaries
-            axis.cla()
-            axis.set_xlim(self.plottiming["begin"], self.plottiming["end"])
+        axis.cla()
+        axis.set_xlim(self.plottiming["begin"], self.plottiming["end"])
+        exclude_default_data = measurement.data.where(measurement.data['time.year'] > 2000, drop=True)
+        axis.set_ylim([0, max(exclude_default_data.sel(measured_variable=datatoplot).values)*1.1])
+        axis.grid()
+        axis.set_xlabel("local time")
+
+        # short time plotting
+        if self.secondsback <= 5 * 60:
+            axis.plot(exclude_default_data.time, exclude_default_data.sel(measured_variable=datatoplot), color=color)
+
+
+        #plotting with averages for longer time periods
+        elif self.secondsback > 5 * 60:
+            #manipulate data, so that we dont show default data (time = year 2000) and are strictly monotonic
             exclude_default_data = measurement.data.where(measurement.data['time.year'] > 2000, drop=True)
-            axis.set_ylim([0, max(exclude_default_data.sel(measured_variable=datatoplot).values)*1.1])
-            axis.grid()
+            avgs = exclude_default_data.sortby(exclude_default_data.time).resample(time='15s').mean()
+            axis.plot(avgs.time, avgs.sel(measured_variable=datatoplot), color=color)
+
+        if measurement.data.attrs["Measurement"] == "Microphone":
+            # # #making background color
+            # timetrue = measurement.data.where(measurement.data.time > np.datetime64(self.plottiming["begin"]),
+            #                                   drop=True) < self.amp_threshold
+            # timetrue = np.array([1 if i else 0 for i in timetrue])
+            # firsttime = pd.to_datetime(measurement.data.time[0].values)
+            # norm = matplotlib.pyplot.Normalize(0, 1)
+            # if firsttime > self.plottiming["begin"]:
+            #
+            #     x_axislimit1, x_axislimit2 = axis.get_xlim()
+            #     seconds_to_firstpoint = datetime.datetime.now() - firsttime
+            #     x_axislimit1 = x_axislimit2 - (x_axislimit2 - x_axislimit1) * (
+            #         seconds_to_firstpoint.total_seconds()) / self.secondsback
+            #     axis.pcolorfast((x_axislimit1, x_axislimit2), axis.get_ylim(), timetrue[np.newaxis], cmap='RdYlGn',
+            #                     norm=norm, alpha=0.3)
+            # else:
+            #     axis.pcolorfast(axis.get_xlim(), axis.get_ylim(), timetrue[np.newaxis], cmap='RdYlGn', norm=norm,
+            #                     alpha=0.3)
+            axis.axhline(y=self.amp_threshold)
+            axis.legend(["Amplitude Mikrophon"])
+            axis.set_ylabel(r"[$dB$]")
+
+        # make the flight time y axis
+        selectedtime = slice(datetime.datetime.now()-datetime.timedelta(hours =1),datetime.datetime.now())
+        for arrdep in ["arrivals","departures"]:
+           times = self.flight.data[arrdep].time.sel(time = selectedtime).values
+
+           if arrdep == "arrivals":
+               strings = ["Flug " + self.flight.data[arrdep].sel(flightdata = "callsign").sel(time = selectedtime).values[i] +" von "+
+                          self.flight.data[arrdep].sel(flightdata = "origin").sel(time = selectedtime).values[i]
+                            for i in range(0,self.flight.data[arrdep].sel(time = selectedtime).shape[0])]
+           if arrdep == "departures":
+               strings = ["Flug"+ self.flight.data[arrdep].sel(flightdata = "callsign").sel(time = selectedtime).values[i] +" nach "+
+                          self.flight.data[arrdep].sel(flightdata = "destination").sel(time = selectedtime).values[i]
+                                 for i in range(0,self.flight.data[arrdep].sel(time = selectedtime).shape[0])]
+           for time, string in zip(times, strings):
+                axis.axvline(x = time, color='r')
+                if datatoplot == "diameter":
+                    axis.text(time, 1, string, rotation=90)
+           print("Plot ", arrdep, "timestamps at", times)
+
+        axis.legend([datatoplot])
+        if datatoplot == "Number [1/cm3]":
+            axis.set_ylabel(r"[$ Teilchen/cm^3$]")
+            axis.legend(["Anzahldichte Aerosolpartikel"])
+
+        elif datatoplot == "Amplitude":
+            axis.set_ylabel(r"[$dB$]")
+            axis.legend(["Lautstärke vom Dach"])
+        else:
+
+            axis.set_ylabel(r"[$nm$]")
+            axis.legend(["Durchmesser Aerosolpartikel"])
             axis.set_xlabel("local time")
 
-            # short time plotting
-            if self.secondsback <= 5 * 60:
-                axis.plot(exclude_default_data.time, exclude_default_data.sel(measured_variable=datatoplot), color=color)
-
-
-            #plotting with averages for longer time periods
-            elif self.secondsback > 5 * 60:
-                #manipulate data, so that we dont show default data (time = year 2000) and are strictly monotonic
-                exclude_default_data = measurement.data.where(measurement.data['time.year'] > 2000, drop=True)
-                avgs = exclude_default_data.sortby(exclude_default_data.time).resample(time='15s').mean()
-                axis.plot(avgs.time, avgs.sel(measured_variable=datatoplot), color=color)
-
-            if measurement.data.attrs["Measurement"] == "Microphone":
-                # # #making background color
-                # timetrue = measurement.data.where(measurement.data.time > np.datetime64(self.plottiming["begin"]),
-                #                                   drop=True) < self.amp_threshold
-                # timetrue = np.array([1 if i else 0 for i in timetrue])
-                # firsttime = pd.to_datetime(measurement.data.time[0].values)
-                # norm = matplotlib.pyplot.Normalize(0, 1)
-                # if firsttime > self.plottiming["begin"]:
-                #
-                #     x_axislimit1, x_axislimit2 = axis.get_xlim()
-                #     seconds_to_firstpoint = datetime.datetime.now() - firsttime
-                #     x_axislimit1 = x_axislimit2 - (x_axislimit2 - x_axislimit1) * (
-                #         seconds_to_firstpoint.total_seconds()) / self.secondsback
-                #     axis.pcolorfast((x_axislimit1, x_axislimit2), axis.get_ylim(), timetrue[np.newaxis], cmap='RdYlGn',
-                #                     norm=norm, alpha=0.3)
-                # else:
-                #     axis.pcolorfast(axis.get_xlim(), axis.get_ylim(), timetrue[np.newaxis], cmap='RdYlGn', norm=norm,
-                #                     alpha=0.3)
-                axis.axhline(y=self.amp_threshold)
-                axis.legend(["Amplitude Mikrophon"])
-                axis.set_ylabel(r"[$dB$]")
-
-            # make the flight time y axis
-            selectedtime = slice(datetime.datetime.now()-datetime.timedelta(hours =1),datetime.datetime.now())
-            for arrdep in ["arrivals","departures"]:
-               times = self.flight.data[arrdep].time.sel(time = selectedtime).values
-
-               if arrdep == "arrivals":
-                   strings = ["Flug " + self.flight.data[arrdep].sel(flightdata = "callsign").sel(time = selectedtime).values[i] +" von "+
-                              self.flight.data[arrdep].sel(flightdata = "origin").sel(time = selectedtime).values[i]
-                                for i in range(0,self.flight.data[arrdep].sel(time = selectedtime).shape[0])]
-               if arrdep == "departures":
-                   strings = ["Flug"+ self.flight.data[arrdep].sel(flightdata = "callsign").sel(time = selectedtime).values[i] +" nach "+
-                              self.flight.data[arrdep].sel(flightdata = "destination").sel(time = selectedtime).values[i]
-                                     for i in range(0,self.flight.data[arrdep].sel(time = selectedtime).shape[0])]
-               for time, string in zip(times, strings):
-                    axis.axvline(x = time, color='r')
-                    if datatoplot == "diameter":
-                        axis.text(time, 1, string, rotation=90)
-               print("Plot ", arrdep, "timestamps at", times)
-
-            axis.legend([datatoplot])
-            if datatoplot == "Number [1/cm3]":
-                axis.set_ylabel(r"[$ Teilchen/cm^3$]")
-                axis.legend(["Anzahldichte Aerosolpartikel"])
-
-            elif datatoplot == "Amplitude":
-                axis.set_ylabel(r"[$dB$]")
-                axis.legend(["Lautstärke vom Dach"])
-            else:
-
-                axis.set_ylabel(r"[$nm$]")
-                axis.legend(["Durchmesser Aerosolpartikel"])
-                axis.set_xlabel("local time")
-
-            self.canvas.draw()
-        except:
-            print("...Could no plot ", datatoplot, " data")
+        self.canvas.draw()
+        #except:
+        #    print("...Could no plot ", datatoplot, " data")
 
     def timer_onesec_funct_to_worker(self):
         def dowloads_saves():
