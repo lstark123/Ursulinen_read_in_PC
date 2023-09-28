@@ -33,7 +33,8 @@ class Measurement:
     def __init__(self):
         self.initial_time = datetime.datetime.now()
         self.time = np.array(self.initial_time)
-        self.save_newfile_ndatapoints = 60*60
+        # self.save_newfile_ndatapoints = 60*60
+        self.save_newfile_ndatapoints = 30
         print(f"Saving every second in {self.save_newfile_ndatapoints} seconds files")
         self.total_n_updates = 0
 
@@ -288,7 +289,9 @@ class Weatherdata(Measurement):
         # now with default values
         super().__init__()
         # Set the absolute path to chromedriver
-        self.service = Service(r"C:\Users\c7441354\PycharmProjects\Ursulinen_read_in_PC\chromedriver_win32\chromedriver17.exe")
+        # self.service = Service(r"C:\Users\c7441354\PycharmProjects\Ursulinen_read_in_PC\chromedriver_win32\chromedriver17.exe")
+        self.service = Service(r"C:\Users\peaq\Uniarbeit\Python\chromedriver\chromedriver-win64\chromedriver.exe")
+
         self.options = webdriver.ChromeOptions()
         # driver = webdriver.Chrome(service=service, options=options)
         # self.chromedrive_path = r"C:\Users\peaq\AppData\Local\Google\Chrome\chromedriver.exe"
@@ -470,7 +473,8 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         #self.save_location = str(QFileDialog.getExistingDirectory(self, "Wo speicher ich die Daten hin?"))
-        self.save_location = r"C:\Users\c7441354\Documents\Ursulinen\roof_data"
+        # self.save_location = r"C:\Users\c7441354\Documents\Ursulinen\roof_data"
+        self.save_location = "F:\\Uniarbeit\\data\\test"
         self.date_save_location = os.path.join(self.save_location, datetime.date.today().strftime("%Y_%m_%d"))
         if not(os.path.exists(self.date_save_location)):
             os.mkdir(self.date_save_location)
@@ -510,12 +514,6 @@ class MainWindow(QMainWindow):
         print("starting timer")
         self.timer_onesec .start()
 
-        self.time_fivesec = 5000
-        self.timer_fivesec = QtCore.QTimer()
-        self.timer_fivesec.setInterval(self.time_fivesec)
-        self.timer_fivesec.timeout.connect(self.timer_fivesec_funct_to_worker )
-        self.timer_fivesec.start()
-
 
     def init_ui(self):
         print("Initializing Window")
@@ -548,6 +546,33 @@ class MainWindow(QMainWindow):
         widget = QWidget()
         widget.setLayout(mainlayout)
         self.setCentralWidget(widget)
+
+    def timer_onesec_funct_to_worker(self):
+        def timer_one_sec():
+            self.part.number_downloads_onefile += 1
+            self.mic.number_downloads_onefile += 1
+
+            self.download_data(self.part, np.full(19, self.part.number_downloads_onefile))  # ****
+            # self.download_data(self.part, self.part.get_data(self.part.ser))
+            self.download_data(self.mic, np.random.rand(1))  # *****
+            # self.download_data(self.mic, self.mic.get_onesec_meanamplitude())
+
+            if self.part.number_downloads_onefile % 5 == 0:  # update plots every 5 downloads
+
+                self.plottiming["begin"] = datetime.datetime.now() - datetime.timedelta(seconds=self.secondsback)
+                self.plottiming["end"] = datetime.datetime.now() + datetime.timedelta(seconds=self.secondsback / 6)
+                self.update_plot(self.canvas.ax3, self.part, "Diameter [nm]", color='C0')
+                self.update_plot(self.canvas.ax2, self.part, "Number [1/cm3]", color='C1')
+                self.update_plot(self.canvas.ax1,self.mic,"Amplitude",color='C3')
+
+            if self.part.number_downloads_onefile % self.save_file_update_ndatapoints == 0:  # every update datapoints save (it is normally 15)
+                self.save_datarow()
+
+            if self.part.number_downloads_onefile % self.part.save_newfile_ndatapoints == 0:  # every update datapoints save (it is normally 60*60 downloads)
+                self.save_file()
+
+        worker = Worker(timer_one_sec)
+        self.threadpool.start(worker)
 
     def the_button_was_clicked(self):
         self.part.ser.close()
@@ -606,7 +631,6 @@ class MainWindow(QMainWindow):
 
     def save_datarow(self):
         #save the new data every save_file_update_ndatapoints seconds
-        if self.part.number_downloads_onefile % self.save_file_update_ndatapoints == 0:
             #if we have a new day make new directory
             if os.path.basename(self.date_save_location) != datetime.date.today().strftime("%Y_%m_%d"):
                 self.date_save_location = os.path.join(self.save_location, datetime.date.today().strftime("%Y_%m_%d"))
@@ -625,35 +649,35 @@ class MainWindow(QMainWindow):
             self.mic.data.to_netcdf(self.save_file_current_path, group=self.mic.data.attrs["Measurement"], engine="netcdf4", mode="a")
             print("...save Microphone")
 
+    def save_file(self):
         # this happens at the end of the file
-        if self.part.number_downloads_onefile % self.part.save_newfile_ndatapoints == 0:
-            #update flight data and save it
-            try:
-                self.flight.data = self.flight.get_flightdata()
+        #update flight data and save it
+        try:
+            self.flight.data = self.flight.get_flightdata()
 
-                self.weather.data = self.weather.get_data()
+            self.weather.data = self.weather.get_data()
 
-                time.sleep(10)
-                self.flight.data["arrivals"].to_netcdf(self.save_file_current_path, group="Flight_arrivals", engine="netcdf4", mode="a")
-                self.flight.data["departures"].to_netcdf(self.save_file_current_path, group="Flight_departures", engine="netcdf4",mode="a")
-                print("..saved flight data")
+            time.sleep(10)
+            self.flight.data["arrivals"].to_netcdf(self.save_file_current_path, group="Flight_arrivals", engine="netcdf4", mode="a")
+            self.flight.data["departures"].to_netcdf(self.save_file_current_path, group="Flight_departures", engine="netcdf4",mode="a")
+            print("..saved flight data")
 
-                self.weather.data.to_netcdf(self.save_file_current_path, group="Weather", engine="netcdf4", mode="a")
+            self.weather.data.to_netcdf(self.save_file_current_path, group="Weather", engine="netcdf4", mode="a")
 
 
-                self.flight.data["arrivals"].to_netcdf(self.save_file_current_path, group="flight_arrivals", engine="netcdf4", mode="a")
-                self.flight.data["departures"].to_netcdf(self.save_file_current_path, group="flight_departures", engine="netcdf4",mode="a")
-                print("..saved flight data")
-            except:
-                print("Could not load flight data or weather data.")
+            self.flight.data["arrivals"].to_netcdf(self.save_file_current_path, group="flight_arrivals", engine="netcdf4", mode="a")
+            self.flight.data["departures"].to_netcdf(self.save_file_current_path, group="flight_departures", engine="netcdf4",mode="a")
+            print("..saved flight data")
+        except:
+            print("Could not load flight data or weather data.")
 
-            #make a new file
-            self.save_file_current_inital_time = datetime.datetime.now()
-            self.save_file_current_path = os.path.join(self.date_save_location,
-                                                       self.save_file_current_inital_time.strftime("%Y_%m_%d_%Hh%Mm%Ss") + ".nc")
-            print(f"open new file at {self.save_file_current_path}")
-            self.part.number_downloads_onefile = 0
-            self.mic.number_downloads_onefile = 0
+        #make a new file
+        self.save_file_current_inital_time = datetime.datetime.now()
+        self.save_file_current_path = os.path.join(self.date_save_location,
+                                                   self.save_file_current_inital_time.strftime("%Y_%m_%d_%Hh%Mm%Ss") + ".nc")
+        print(f"open new file at {self.save_file_current_path}")
+        self.part.number_downloads_onefile = 0
+        self.mic.number_downloads_onefile = 0
 
 
 
@@ -738,35 +762,6 @@ class MainWindow(QMainWindow):
         self.canvas.draw()
         #except:
         #    print("...Could no plot ", datatoplot, " data")
-
-    def timer_onesec_funct_to_worker(self):
-        def dowloads_saves():
-            self.part.number_downloads_onefile += 1
-            self.mic.number_downloads_onefile += 1
-
-            #self.download_data(self.part, np.full(19, self.part.number_downloads_onefile)) #****
-            self.download_data(self.part, self.part.get_data(self.part.ser))
-            #self.download_data(self.mic, np.random.rand(1))  # *****
-            self.download_data(self.mic, self.mic.get_onesec_meanamplitude())
-            self.save_datarow()
-
-        worker = Worker(dowloads_saves)
-        self.threadpool.start(worker)
-
-    def timer_fivesec_funct_to_worker(self):
-
-
-        def update_plot_all():
-            self.plottiming["begin"] = datetime.datetime.now() - datetime.timedelta(seconds=self.secondsback)
-            self.plottiming["end"] = datetime.datetime.now() + datetime.timedelta(seconds=self.secondsback/6)
-            self.update_plot(self.canvas.ax3, self.part, "Diameter [nm]", color='C0')
-            self.update_plot(self.canvas.ax2, self.part, "Number [1/cm3]", color='C1')
-            self.update_plot(self.canvas.ax1,self.mic,"Amplitude",color='C3')
-
-        worker = Worker(update_plot_all)
-        self.threadpool.start(worker)
-        print(f"thread {self.threadpool.activeThreadCount()} -> update plot")
-
 
 
 def main():
