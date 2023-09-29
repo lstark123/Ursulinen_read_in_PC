@@ -217,29 +217,40 @@ class Flightdata():
         self.data = self.get_flightdata()
 
     def extract_relevant_data(self, flightdata_array, arrival_or_departure):
-        flight_movement_info = {"time": np.array([]),
+        time_coordinates = np.array([])
+        flight_movement_info = {"time_estimated_UNIX": np.array([]),
+                                "time_real_UNIX": np.array([]),
+                                "time_scheduled_UNIX": np.array([]),
                                 "status" : np.array([]),
                                 "origin": np.array([]),
                                 "destination": np.array([]),
                                 "aircraftmodel": np.array([]),
-                                "callsign": np.array([])}
+                                "aircraftmodel_code": np.array([]),
+                                "callsign": np.array([]),
+                                "airline": np.array([]),
+                                "arrival_departure": np.array([])}
         for flight in flightdata_array:
+            flight_movement_info["arrival_departure"] = np.append(flight_movement_info["arrival_departure"], arrival_or_departure)
             try:
                 date = flight["flight"]["time"]["estimated"][arrival_or_departure + "_date"]
                 time = flight["flight"]["time"]["estimated"][arrival_or_departure + "_time"]
                 flight_movement_time = pd.to_datetime(date + time, format='%Y%m%d%H%M')
-                flight_movement_info["time"] = np.append(flight_movement_info["time"], flight_movement_time)
+                flight_movement_info["time_estimated_UNIX"] = np.append(flight_movement_info["time_estimated_UNIX"], str(flight_movement_time.timestamp()))
             except:
-                try:
-                    date = flight["flight"]["time"]["real"][arrival_or_departure + "_date"]
-                    time = flight["flight"]["time"]["real"][arrival_or_departure + "_time"]
-                    flight_movement_time = pd.to_datetime(date + time, format='%Y%m%d%H%M')
-                    flight_movement_info["time"] = np.append(flight_movement_info["time"], flight_movement_time)
-                except:
-                    date = flight["flight"]["time"]["scheduled"][arrival_or_departure + "_date"]
-                    time = flight["flight"]["time"]["scheduled"][arrival_or_departure + "_time"]
-                    flight_movement_time = pd.to_datetime(date + time, format='%Y%m%d%H%M')
-                    flight_movement_info["time"] = np.append(flight_movement_info["time"], flight_movement_time)
+                flight_movement_info["time_estimated_UNIX"] = np.append(flight_movement_info["time_estimated_UNIX"], "")
+            try:
+                date = flight["flight"]["time"]["real"][arrival_or_departure + "_date"]
+                time = flight["flight"]["time"]["real"][arrival_or_departure + "_time"]
+                flight_movement_time = pd.to_datetime(date + time, format='%Y%m%d%H%M')
+                flight_movement_info["time_real_UNIX"] = np.append(flight_movement_info["time_real_UNIX"], str(flight_movement_time.timestamp()))
+            except:
+                flight_movement_info["time_real_UNIX"] = np.append(flight_movement_info["time_real_UNIX"], "")
+
+            date = flight["flight"]["time"]["scheduled"][arrival_or_departure + "_date"]
+            time = flight["flight"]["time"]["scheduled"][arrival_or_departure + "_time"]
+            flight_movement_time = pd.to_datetime(date + time, format='%Y%m%d%H%M')
+            time_coordinates = np.append(time_coordinates, flight_movement_time)
+            flight_movement_info["time_scheduled_UNIX"] = np.append(flight_movement_info["time_scheduled_UNIX"],str(flight_movement_time.timestamp()))
             for z in ["origin", "destination"]:
                 try:
                     flight_place = flight["flight"]["airport"][z]["code"]["iata"]
@@ -249,6 +260,8 @@ class Flightdata():
             try:
                 flight_movement_info["aircraftmodel"] = np.append(flight_movement_info["aircraftmodel"],
                                                                   flight["flight"]["aircraft"]["model"]["text"])
+                flight_movement_info["aircraftmodel_code"] = np.append(flight_movement_info["aircraftmodel_code"],
+                                                                  flight["flight"]["aircraft"]["model"]["code"])
                 flight_movement_info["callsign"] = np.append(flight_movement_info["callsign"],
                                                              flight["flight"]["identification"]["callsign"])
                 flight_movement_info["status"] = np.append(flight_movement_info["status"],
@@ -257,16 +270,14 @@ class Flightdata():
             except:
                 flight_movement_info["aircraftmodel"] = np.append(flight_movement_info["aircraftmodel"], "")
                 flight_movement_info["callsign"] = np.append(flight_movement_info["callsign"], "")
-
+                flight_movement_info["aircraftmodel_code"] = np.append(flight_movement_info["aircraftmodel_code"], "")
+            try:
+                flight_movement_info["airline"] = np.append(flight_movement_info["airline"],
+                                                             flight["flight"]["airline"]["name"])
+            except:
+                flight_movement_info["airline"] = np.append(flight_movement_info["airline"], "")
         flight_movement_info = pd.DataFrame(flight_movement_info)
-
-        flight_movement_info = xr.DataArray(
-            flight_movement_info.loc[:,["origin","destination","aircraftmodel","callsign","status"]].values,
-            coords={"time": flight_movement_info.time,
-                    "flightdata": flight_movement_info.loc[:,["origin","destination","aircraftmodel","callsign","status"]].columns.values},
-            dims=["time", "flightdata"])
-
-        print("Extracted relevant information out of flight data response")
+        flight_movement_info.index = time_coordinates
 
         return flight_movement_info
     def get_flightdata(self):
@@ -276,11 +287,18 @@ class Flightdata():
 
         arrivals = self.extract_relevant_data(arrivals_alldata, "arrival")
         departures = self.extract_relevant_data(departures_alldata, "departure")
-        arrivals = arrivals.sortby(arrivals.time)
-        departures = departures.sortby(departures.time)
+        flight_movements = pd.concat([arrivals,departures])
 
-        flightdata = {"arrivals" : arrivals, "departures": departures}
-        return flightdata
+        flight_movements_info = xr.DataArray(
+            flight_movements,
+            coords={"time": flight_movements.index,
+                    "flightdata": flight_movements.columns.values},
+            dims=["time", "flightdata"])
+
+        print("Extracted relevant information out of flight data response")
+        flight_movements_info = flight_movements_info.sortby(flight_movements_info.time)
+
+        return flight_movements_info
 
 
 
@@ -484,7 +502,7 @@ class MainWindow(QMainWindow):
         self.part = Partector(self.comportpartector)
         self.mic = Microphone()
         self.flight = Flightdata()
-        loadweatherdata = True
+        loadweatherdata = False
         if loadweatherdata:
             self.weather = Weatherdata()
 
@@ -550,15 +568,14 @@ class MainWindow(QMainWindow):
     def timer_onesec_funct_to_worker(self):
         def timer_one_sec():
             self.part.number_downloads_onefile += 1
-            self.mic.number_downloads_onefile += 1
-
+            print(self.part.number_downloads_onefile,"download dataline")
             self.download_data(self.part, np.full(19, self.part.number_downloads_onefile))  # ****
             # self.download_data(self.part, self.part.get_data(self.part.ser))
             self.download_data(self.mic, np.random.rand(1))  # *****
             # self.download_data(self.mic, self.mic.get_onesec_meanamplitude())
 
             if self.part.number_downloads_onefile % 5 == 0:  # update plots every 5 downloads
-
+                print(self.part.number_downloads_onefile, "Update Plot")
                 self.plottiming["begin"] = datetime.datetime.now() - datetime.timedelta(seconds=self.secondsback)
                 self.plottiming["end"] = datetime.datetime.now() + datetime.timedelta(seconds=self.secondsback / 6)
                 self.update_plot(self.canvas.ax3, self.part, "Diameter [nm]", color='C0')
@@ -566,9 +583,11 @@ class MainWindow(QMainWindow):
                 self.update_plot(self.canvas.ax1,self.mic,"Amplitude",color='C3')
 
             if self.part.number_downloads_onefile % self.save_file_update_ndatapoints == 0:  # every update datapoints save (it is normally 15)
+                print(self.part.number_downloads_onefile, "Save the datarows")
                 self.save_datarow()
 
             if self.part.number_downloads_onefile % self.part.save_newfile_ndatapoints == 0:  # every update datapoints save (it is normally 60*60 downloads)
+                print(self.part.number_downloads_onefile, "Save file")
                 self.save_file()
 
         worker = Worker(timer_one_sec)
@@ -607,7 +626,7 @@ class MainWindow(QMainWindow):
 
     def download_data(self,measurement,newline):
         #first download new line
-        print(f"thread {self.threadpool.activeThreadCount()} -> download line {self.part.number_downloads_onefile} for " + measurement.data.attrs["Measurement"])
+
         newline = newline
         newtime = datetime.datetime.now()
         # print(f"thread {self.threadpool.activeThreadCount()} at computertime {datetime.datetime.now()} -> downloaded complete line {self.part.number_downloads_onefile} with time {newtime} for " + measurement.data.attrs["Measurement"])
@@ -655,18 +674,14 @@ class MainWindow(QMainWindow):
         try:
             self.flight.data = self.flight.get_flightdata()
 
+
             self.weather.data = self.weather.get_data()
 
             time.sleep(10)
-            self.flight.data["arrivals"].to_netcdf(self.save_file_current_path, group="Flight_arrivals", engine="netcdf4", mode="a")
-            self.flight.data["departures"].to_netcdf(self.save_file_current_path, group="Flight_departures", engine="netcdf4",mode="a")
+            self.flight.data.to_netcdf(self.save_file_current_path, group="Flights", engine="netcdf4", mode="a")
             print("..saved flight data")
 
             self.weather.data.to_netcdf(self.save_file_current_path, group="Weather", engine="netcdf4", mode="a")
-
-
-            self.flight.data["arrivals"].to_netcdf(self.save_file_current_path, group="flight_arrivals", engine="netcdf4", mode="a")
-            self.flight.data["departures"].to_netcdf(self.save_file_current_path, group="flight_departures", engine="netcdf4",mode="a")
             print("..saved flight data")
         except:
             print("Could not load flight data or weather data.")
@@ -728,22 +743,24 @@ class MainWindow(QMainWindow):
 
         # make the flight time y axis
         selectedtime = slice(datetime.datetime.now()-datetime.timedelta(hours =1),datetime.datetime.now())
-        for arrdep in ["arrivals","departures"]:
-           times = self.flight.data[arrdep].time.sel(time = selectedtime).values
-
-           if arrdep == "arrivals":
-               strings = ["Flug " + self.flight.data[arrdep].sel(flightdata = "callsign").sel(time = selectedtime).values[i] +" von "+
-                          self.flight.data[arrdep].sel(flightdata = "origin").sel(time = selectedtime).values[i]
-                            for i in range(0,self.flight.data[arrdep].sel(time = selectedtime).shape[0])]
-           if arrdep == "departures":
-               strings = ["Flug"+ self.flight.data[arrdep].sel(flightdata = "callsign").sel(time = selectedtime).values[i] +" nach "+
-                          self.flight.data[arrdep].sel(flightdata = "destination").sel(time = selectedtime).values[i]
-                                 for i in range(0,self.flight.data[arrdep].sel(time = selectedtime).shape[0])]
-           for time, string in zip(times, strings):
+        for arrdep in ["arrival","departure"]:
+            arrdep_data = self.flight.data.where(self.flight.data.sel(flightdata='arrival_departure') == arrdep)
+            times = arrdep_data.time.sel(time = selectedtime).values
+            if arrdep == "arrival":
+                print(type(arrdep_data.sel(flightdata = "callsign").sel(time = selectedtime).values[1]))
+                print(type(arrdep_data.sel(flightdata = "origin").sel(time = selectedtime).values[1]))
+                strings = ["Flug " + str(arrdep_data.sel(flightdata = "callsign").sel(time = selectedtime).values[i]) +" von "+
+                              str(arrdep_data.sel(flightdata = "origin").sel(time = selectedtime).values[i])
+                            for i in range(0,arrdep_data.sel(time = selectedtime).shape[0])]
+            if arrdep == "departure":
+               strings = ["Flug"+ str(arrdep_data.sel(flightdata = "callsign").sel(time = selectedtime).values[i]) +" nach "+
+                          str(arrdep_data.sel(flightdata = "destination").sel(time = selectedtime).values[i])
+                                 for i in range(0,arrdep_data.sel(time = selectedtime).shape[0])]
+            for time, string in zip(times, strings):
                 axis.axvline(x = time, color='r')
                 if datatoplot == "diameter":
                     axis.text(time, 1, string, rotation=90)
-           print("Plot ", arrdep, "timestamps at", times)
+            print("Plot ", arrdep, "timestamps at", times)
 
         axis.legend([datatoplot])
         if datatoplot == "Number [1/cm3]":
