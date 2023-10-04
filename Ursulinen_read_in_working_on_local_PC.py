@@ -23,8 +23,7 @@ import xarray as xr
 import pandas as pd
 from pyflightdata import FlightData
 from selenium.webdriver.common.by import By
-# importing the module
-import logging
+
 
 
 #fragen:
@@ -37,16 +36,17 @@ class Measurement:
     def __init__(self):
         self.initial_time = datetime.datetime.now()
         self.time = np.array(self.initial_time)
-        # self.save_newfile_ndatapoints = 60*60
-        self.save_newfile_ndatapoints = 30
+        self.save_newfile_ndatapoints = 60*60
+        #self.save_newfile_ndatapoints = 30
         print(f"Saving every second in {self.save_newfile_ndatapoints} seconds files")
         self.total_n_updates = 0
 
 
 class Partector(Measurement):
-    def __init__(self,comport):
+    def __init__(self,comport, Parent):
         # now with default values
         super().__init__()
+        self.parent = Parent
 
         self.data_names = np.array(["Time since instrument start [s]",
                            "Charger diffusion current [nA]",
@@ -103,9 +103,9 @@ class Partector(Measurement):
                 print(f"I opened COM port {COM}")
                 return ser
                 break
-            except:
+            except Exception as error:
                 print(f"I tried opening COM port {COMPORT}")
-                with open(self.loggingfile_location, "a") as f:
+                with open(self.parent.loggingfile_location, "a") as f:
                     f.write("\n" + datetime.datetime.now().strftime("%H:%M:%S") + " Error " + str(error))
 
             x +=1
@@ -128,8 +128,8 @@ class Partector(Measurement):
                 ser.open()
                 print(f"I opened COM port {self.comport}")
 
-            except:
-                with open(self.loggingfile_location, "a") as f:
+            except Exception as error:
+                with open(self.parent.loggingfile_location, "a") as f:
                     f.write("\n" + datetime.datetime.now().strftime("%H:%M:%S") + " Error COM port " + str(error))
 
     def get_data(self,ser):
@@ -147,11 +147,11 @@ class Partector(Measurement):
                 newline = str(newline, 'utf-8').split('\t')
                 newline = [float(x) for x in newline]
                 return np.array(newline)
-            except:
+            except Exception as error:
                 print(f"Something went wrong with querying data form Partector")
                 ser.close()
                 return np.full(3,np.nan)
-                with open(self.loggingfile_location, "a") as f:
+                with open(self.parent.loggingfile_location, "a") as f:
                     f.write("\n" + datetime.datetime.now().strftime("%H:%M:%S") + " Error querying partector " + str(error))
 
 
@@ -163,20 +163,21 @@ class Partector(Measurement):
         pass
 
 class Microphone(Measurement):
-    def __init__(self):
+    def __init__(self, Parent):
         # now with default values
         super().__init__()
+        self.parent = Parent
         try:
             self.stream = sd.InputStream(
                 samplerate=44100,
                 channels=2,
                 blocksize=44100)
-        except:
+        except Exception as error:
             self.stream = sd.InputStream(
                 samplerate=44100,
                 channels=1,
                 blocksize=44100)
-            with open(self.loggingfile_location, "a") as f:
+            with open(self.parent.loggingfile_location, "a") as f:
                 f.write("\n" + datetime.datetime.now().strftime("%H:%M:%S") + " Error streaming mic " + str(error))
 
         self.data = xr.DataArray(
@@ -212,9 +213,9 @@ class Microphone(Measurement):
 
                 dBdata = 20 * np.log10(rms_flat(recording))
                 return(dBdata)
-            except:
+            except Exception as error:
                 print("Something went wrong in gathering Microphone Amplitude")
-                with open(self.loggingfile_location, "a") as f:
+                with open(self.parent.loggingfile_location, "a") as f:
                     f.write("\n" + datetime.datetime.now().strftime("%H:%M:%S") + " Error gathering Microphone Amplitude " + str(error))
                 return np.nan
         else:
@@ -233,8 +234,9 @@ class Flightdata():
                             "aircraftmodel_code", "callsign", "airline", "arrival_departure"]
     And is "" if no data is given
     """
-    def __init__(self):
+    def __init__(self, Parent):
         self.data = self.get_flightdata()
+        self.parent = Parent
 
     def extract_relevant_data(self, flightdata_array, arrival_or_departure):
         nrflights = len(flightdata_array)
@@ -386,9 +388,10 @@ class Flightdata():
 
 
 class Weatherdata(Measurement):
-    def __init__(self):
+    def __init__(self, Parent):
         # now with default values
         super().__init__()
+        self.parent = Parent
         # Set the absolute path to chromedriver
         self.service = Service(r"C:\Users\c7441354\PycharmProjects\Ursulinen_read_in_PC\chromedriver_win32\chromedriver17.exe")
         #self.service = Service(r"C:\Users\peaq\Uniarbeit\Python\chromedriver\chromedriver-win64\chromedriver.exe")
@@ -524,13 +527,14 @@ class Worker(QRunnable):
 
     '''
 
-    def __init__(self, fn, *args, **kwargs):
+    def __init__(self, fn, *args, parent = 0):
         super(Worker, self).__init__()
 
         # Store constructor arguments (re-used for processing)
+        self.parent = parent
         self.fn = fn
         self.args = args
-        self.kwargs = kwargs
+        #self.kwargs = kwargs
         self.signals = WorkerSignals()
 
 
@@ -542,12 +546,12 @@ class Worker(QRunnable):
 
         # Retrieve args/kwargs here; and fire processing using them
         try:
-            result = self.fn(*self.args, **self.kwargs)
-        except:
+            result = self.fn(*self.args)#, **self.kwargs)
+        except Exception as error:
             traceback.print_exc()
             exctype, value = sys.exc_info()[:2]
             self.signals.error.emit((exctype, value, traceback.format_exc()))
-            with open(self.loggingfile_location, "a") as f:
+            with open(self.parent.loggingfile_location, "a") as f:
                 f.write("\n" + datetime.datetime.now().strftime("%H:%M:%S") + " Error " + str(error))
         else:
             self.signals.result.emit(result)  # Return the result of the processing
@@ -574,6 +578,7 @@ class MplCanvas(FigureCanvas):
         super(MplCanvas, self).__init__(self.fig)
 
 class MainWindow(QMainWindow):
+
     def __init__(self):
         super().__init__()
         #self.save_location = str(QFileDialog.getExistingDirectory(self, "Wo speicher ich die Daten hin?"))
@@ -585,14 +590,16 @@ class MainWindow(QMainWindow):
         print(f"Saving data at {self.save_location}")
         self.loggingfile_location = os.path.join(self.date_save_location,"logging"+datetime.datetime.now().strftime("%Y_%m_%d-%H-%M") + ".txt")
 
+        #self.loggingfile_location = os.path.join(self.date_save_location,"logging"+datetime.datetime.now().strftime("%Y_%m_%d-%H-%M") + ".txt")
+
         self.comportpartector = 4# self.dialogue_select_comport()
-        self.part = Partector(self.comportpartector)
-        self.mic = Microphone()
-        self.flight = Flightdata()
+        self.part = Partector(self.comportpartector, self)
+        self.mic = Microphone(self)
+        self.flight = Flightdata(self)
 
         loadweatherdata = True
         if loadweatherdata:
-            self.weather = Weatherdata()
+            self.weather = Weatherdata(self)
 
         #get cutout seconds which are plotted back
         self.secondsback = 60
@@ -666,7 +673,8 @@ class MainWindow(QMainWindow):
                     self.download_data(self.mic, self.mic.get_onesec_meanamplitude())
 
 
-                    if self.part.number_downloads_onefile % 60*60 == 0:  # every update datapoints save (it is normally 60*60 downloads)
+                    #if self.part.number_downloads_onefile % (60) == 0:  # every update datapoints save (it is normally 60*60 downloads)
+                    if self.part.number_downloads_onefile % self.part.save_newfile_ndatapoints == 0:
                         print(self.part.number_downloads_onefile, "Save file")
                         print("Stopping Timer")
                         self.timer_counting = False
@@ -680,7 +688,7 @@ class MainWindow(QMainWindow):
                         print(self.part.number_downloads_onefile, "Save the datarows")
                         self.save_datarow()
                         with open(self.loggingfile_location, "a") as f:
-                            f.write("\n" + datetime.datetime.now().strftime("%H:%M:%S") + "Save datarow")
+                            f.write("\n" + datetime.datetime.now().strftime("%H:%M:%S") + " Save datarow")
 
 
                     if self.part.number_downloads_onefile % 5 == 0:  # update plots every 5 downloads
@@ -691,11 +699,12 @@ class MainWindow(QMainWindow):
                         self.update_plot(self.canvas.ax2, self.part, "Number [1/cm3]", color='C1')
                         self.update_plot(self.canvas.ax1,self.mic,"Amplitude",color='C3')
                 except Exception as error:
+                    print(error)
                     with open(self.loggingfile_location, "a") as f:
-                        f.write("\n" + datetime.datetime.now().strftime("%H:%M:%S") + " Error undefined in timer function ", str(error) )
+                        f.write("\n" + datetime.datetime.now().strftime("%H:%M:%S") + " Error undefined in timer function "+ str(error) )
 
 
-            worker = Worker(timer_one_sec)
+            worker = Worker(timer_one_sec, parent=self)
             self.threadpool.start(worker)
 
     def the_button_was_clicked(self):
@@ -713,7 +722,7 @@ class MainWindow(QMainWindow):
             self.amp_threshold = float(text.replace(",","."))
             print(f"New Amplitude threshold: {self.amp_threshold}")
 
-        worker = Worker(to_worker)
+        worker = Worker(to_worker, parent= self)
         self.threadpool.start(worker)
 
     def timewindow_combobox_changed(self, index):
@@ -917,6 +926,7 @@ class MainWindow(QMainWindow):
 def main():
     app = QApplication(sys.argv)
     window = MainWindow()
+    loggingfile_location = window.loggingfile_location
     window.show()
     app.exec()
     #Flightdata()
