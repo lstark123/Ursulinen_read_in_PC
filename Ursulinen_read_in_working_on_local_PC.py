@@ -29,7 +29,14 @@ from selenium.webdriver.common.by import By
 #fragen:
 # wieso sind die Messpunkte nicht immer zur gleichen Zeit?
 # since I implemented the flight arrivals after every 5th timestamp big gap -> takes too long to plot?
+class Logging:
+    def __init__(self, Filepath):
+        self.filepath = Filepath
 
+    def save_logging(self, text):
+        time =datetime.datetime.now().strftime("%Y-%M-%D_%H:%M:%S")
+        with open(self.filepath, "a") as f:
+            f.write("\n" + time + text)
 
 
 class Measurement:
@@ -105,8 +112,7 @@ class Partector(Measurement):
                 break
             except Exception as error:
                 print(f"I tried opening COM port {COMPORT}")
-                with open(self.parent.loggingfile_location, "a") as f:
-                    f.write("\n" + datetime.datetime.now().strftime("%H:%M:%S") + " Error " + str(error))
+                self.parent.logging()
 
             x +=1
         print(f"error with connecting partector COM")
@@ -133,14 +139,8 @@ class Partector(Measurement):
                     f.write("\n" + datetime.datetime.now().strftime("%H:%M:%S") + " Error COM port " + str(error))
 
     def get_data(self,ser):
-        if ser == False:
-            self.serial_connetction_one_time(self.ser)
-            print(f"COM port {self.comport} is not opened")
-        if (ser.isOpen() == False):
-            self.serial_connetction_one_time(self.ser)
-            print(f"COM port {self.comport} is not opened")
-
-        else:
+        try:
+            ser.isOpen()
             try:
                 ser.write(bytearray('D?', 'ascii'))
                 newline = ser.readline()
@@ -149,18 +149,19 @@ class Partector(Measurement):
                 return np.array(newline)
             except Exception as error:
                 print(f"Something went wrong with querying data form Partector")
+                print("Try to reopen")
                 ser.close()
-                return np.full(3,np.nan)
+                self.ser = self.serial_connection(self.comport)
+                return np.full(3, np.nan)
                 with open(self.parent.loggingfile_location, "a") as f:
-                    f.write("\n" + datetime.datetime.now().strftime("%H:%M:%S") + " Error querying partector " + str(error))
+                    f.write("\n" + datetime.datetime.now().strftime("%H:%M:%S") + " Error querying partector trying to reopen " + str(error))
+        except Exception as error:
+            print(f"COM port {self.comport} is closed")
+            print("Try to reopen")
+            with open(self.parent.loggingfile_location, "a") as f:
+                f.write("\n" + datetime.datetime.now().strftime("%H:%M:%S") + " Error serial closed trying to reopen " + str(error))
+            self.ser = self.serial_connection(self.comport)
 
-
-
-
-
-
-    def check_listening(self):
-        pass
 
 class Microphone(Measurement):
     def __init__(self, Parent):
@@ -588,9 +589,8 @@ class MainWindow(QMainWindow):
         if not(os.path.exists(self.date_save_location)):
             os.mkdir(self.date_save_location)
         print(f"Saving data at {self.save_location}")
-        self.loggingfile_location = os.path.join(self.date_save_location,"logging"+datetime.datetime.now().strftime("%Y_%m_%d-%H-%M") + ".txt")
-
-        #self.loggingfile_location = os.path.join(self.date_save_location,"logging"+datetime.datetime.now().strftime("%Y_%m_%d-%H-%M") + ".txt")
+        loggingfile_location = os.path.join(self.date_save_location,"logging"+datetime.datetime.now().strftime("%Y_%m_%d-%H-%M") + ".txt")
+        self.logging = Logging(self.loggingfile_location)
 
         self.comportpartector = 4# self.dialogue_select_comport()
         self.part = Partector(self.comportpartector, self)
@@ -681,15 +681,12 @@ class MainWindow(QMainWindow):
                         self.save_file()
                         self.timer_counting = True
                         print("Restarting Timer")
-                        with open(self.loggingfile_location, "a") as f:
-                            f.write("\n" + datetime.datetime.now().strftime("%H:%M:%S") + " New file")
+                        self.logging.save_logging(" New file")
 
                     if self.part.number_downloads_onefile % 15 == 0:  # every update datapoints save (it is normally 15)
                         print(self.part.number_downloads_onefile, "Save the datarows")
                         self.save_datarow()
-                        with open(self.loggingfile_location, "a") as f:
-                            f.write("\n" + datetime.datetime.now().strftime("%H:%M:%S") + " Save datarow")
-
+                        #self.logging.save_logging(" Save datarow")
 
                     if self.part.number_downloads_onefile % 5 == 0:  # update plots every 5 downloads
                         print(self.part.number_downloads_onefile, "Update Plot")
@@ -700,9 +697,7 @@ class MainWindow(QMainWindow):
                         self.update_plot(self.canvas.ax1,self.mic,"Amplitude",color='C3')
                 except Exception as error:
                     print(error)
-                    with open(self.loggingfile_location, "a") as f:
-                        f.write("\n" + datetime.datetime.now().strftime("%H:%M:%S") + " Error undefined in timer function "+ str(error) )
-
+                    self.logging.save_logging(" Error undefined in timer function "+ str(error) ")
 
             worker = Worker(timer_one_sec, parent=self)
             self.threadpool.start(worker)
@@ -765,28 +760,28 @@ class MainWindow(QMainWindow):
 
     def save_datarow(self):
         #save the new data every save_file_update_ndatapoints seconds
-            #if we have a new day make new directory
-            if os.path.basename(self.date_save_location) != datetime.date.today().strftime("%Y_%m_%d"):
-                self.date_save_location = os.path.join(self.save_location, datetime.date.today().strftime("%Y_%m_%d"))
-                if not (os.path.exists(self.date_save_location)):
-                    os.mkdir(self.date_save_location)
-                #we have to update the save_file_current_path since the directory changed
-                self.save_file_current_path = os.path.join(self.date_save_location,
-                                                           self.save_file_current_inital_time.strftime(
-                                                               "%Y_%m_%d_%Hh%Mm%Ss") + ".nc")
+        print(f"thread {self.threadpool.activeThreadCount()} -> save line {self.part.number_downloads_onefile - self.save_file_update_ndatapoints} to {self.part.number_downloads_onefile} at {self.save_file_current_path} ...")
 
-            print(f"thread {self.threadpool.activeThreadCount()} -> save line {self.part.number_downloads_onefile - self.save_file_update_ndatapoints} to {self.part.number_downloads_onefile} at {self.save_file_current_path} ...")
+        self.part.data.to_netcdf(self.save_file_current_path, group=self.part.data.attrs["Measurement"],engine="netcdf4", mode = "w")
+        print("...saved Partector")
 
-            self.part.data.to_netcdf(self.save_file_current_path, group=self.part.data.attrs["Measurement"],engine="netcdf4", mode = "w")
-            print("...saved Partector")
-
-            self.mic.data.to_netcdf(self.save_file_current_path, group=self.mic.data.attrs["Measurement"], engine="netcdf4", mode="a")
-            print("...save Microphone")
+        self.mic.data.to_netcdf(self.save_file_current_path, group=self.mic.data.attrs["Measurement"], engine="netcdf4", mode="a")
+        print("...save Microphone")
 
     def save_file(self):
         print(
             f"thread {self.threadpool.activeThreadCount()} -> save whole file at {self.save_file_current_path} ...")
 
+        # if we have a new day make new directory
+        if os.path.basename(self.date_save_location) != datetime.date.today().strftime("%Y_%m_%d"):
+            self.date_save_location = os.path.join(self.save_location, datetime.date.today().strftime("%Y_%m_%d"))
+            if not (os.path.exists(self.date_save_location)):
+                os.mkdir(self.date_save_location)
+            # we have to update the save_file_current_path since the directory changed
+            self.save_file_current_path = os.path.join(self.date_save_location,
+                                                       self.save_file_current_inital_time.strftime(
+                                                           "%Y_%m_%d_%Hh%Mm%Ss") + ".nc")
+            self.logging.filepath =  os.path.join(self.date_save_location, "_logging"+datetime.datetime.now().strftime("%Y_%m_%d-%H-%M") + ".txt")
         # this happens at the end of the file
         #update flight data and save it
         try:
@@ -794,9 +789,10 @@ class MainWindow(QMainWindow):
 
 
             time.sleep(10)
-            self.flight.data.to_netcdf(self.save_file_current_path, group="Flights", engine="netcdf4", mode="a")
-            print("..saved flight data")
             selectedtime = slice(datetime.datetime.now() - datetime.timedelta(hours=1), datetime.datetime.now())
+            self.flight.data.sel(time = selectedtime).to_netcdf(self.save_file_current_path, group="Flights", engine="netcdf4", mode="a")
+            print("..saved flight data")
+
             for flight_time_best,identification, flight_time_departure in zip(self.flight.data.sel(time = selectedtime).sel(flightdata = "time_best_UNIX").values,
                                                      self.flight.data.sel(time = selectedtime).sel(flightdata = "default_identification").values,
                                                      self.flight.data.sel(time = selectedtime).sel(flightdata = "time_scheduled_UNIX_departure").values):
@@ -806,6 +802,8 @@ class MainWindow(QMainWindow):
                         screenshot_sp = os.path.join(self.date_save_location, flight_str)
                         #problem: button is labled on starting time of flight!! we have to subtract 2 ours for timezone
                         self.flight.make_screenshot_of_flight_path(identification,str(int(flight_time_departure) - 60*60*2), screenshot_sp)
+                        with open(self.loggingfile_location, "a") as f:
+                            f.write("\n" + datetime.datetime.now().strftime("%H:%M:%S") + " save screenshot of flight " + identification + " at " + screenshot_sp)
                     except Exception as error:
                         print("Didnot find any path for the flight ", identification, " at ", flight_time_best, "Error: ", error)
                         with open(self.loggingfile_location, "a") as f:
@@ -832,6 +830,8 @@ class MainWindow(QMainWindow):
                                                    self.save_file_current_inital_time.strftime("%Y_%m_%d_%Hh%Mm%Ss") + ".nc")
         print(f"open new file at {self.save_file_current_path}")
         self.part.number_downloads_onefile = 0
+
+
 
 
 

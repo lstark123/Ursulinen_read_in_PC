@@ -566,8 +566,8 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         #self.save_location = str(QFileDialog.getExistingDirectory(self, "Wo speicher ich die Daten hin?"))
-        # self.save_location = r"C:\Users\c7441354\Documents\Ursulinen\roof_data"
-        self.save_location = "F:\\Uniarbeit\\data\\test"
+        self.save_location = r"C:\Users\c7441354\Documents\Ursulinen\roof_data"
+        #self.save_location = "F:\\Uniarbeit\\data\\test"
         self.date_save_location = os.path.join(self.save_location, datetime.date.today().strftime("%Y_%m_%d"))
         if not(os.path.exists(self.date_save_location)):
             os.mkdir(self.date_save_location)
