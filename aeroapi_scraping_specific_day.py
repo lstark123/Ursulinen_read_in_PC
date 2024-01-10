@@ -30,7 +30,7 @@ start and end time are gven in ISO8601 Format
 
 class Logging:
     def __init__(self):
-        self.filepath = os.path.join("C:\\Users\\c7441354\\Documents\\Ursulinen\\Data_airport\\logging", "logging_flights_" + datetime.datetime.now().strftime("%Y_%m_%d-%H-%M_%S") + ".txt")
+        self.filepath = os.path.join("D:\\Uniarbeit 23_11_09\\data\\Data_airport\\Data_airport\\logging", "logging_flights_" + datetime.datetime.now().strftime("%Y_%m_%d-%H-%M_%S") + ".txt")
 
     def save_logging(self, text):
         print(text)
@@ -136,7 +136,7 @@ def save_flightinfo_and_track_to_csv(flightinfo,track,filepath,nrflights):
 def load_flights_of_the_day(date_to_load_flights_of):
     global logging
     try:
-        flights_save_path = "C:\\Users\\c7441354\\Documents\\Ursulinen\\Data_airport\\flights"
+        flights_save_path = "D:\\Uniarbeit 23_11_09\\data\\Data_airport\\Data_airport\\flights"
         if not (os.path.exists(flights_save_path)):
             os.mkdir(flights_save_path)
 

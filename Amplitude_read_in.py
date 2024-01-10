@@ -34,12 +34,12 @@ class Logging:
             f.write(f"-----Logging----- starting from: {datetime.datetime.now()}" )
     def save_logging(self, text):
         print(text)
-        time =datetime.datetime.now().strftime("%Y-%M-%D_%H:%M:%S")
+        time =datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
         with open(self.filepath, "a") as f:
             f.write("\n" + time + text)
     def give_error(self, text):
         print(f"Error: {text}")
-        time =datetime.datetime.now().strftime("%Y-%M-%D_%H:%M:%S")
+        time =datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
         stack_trace = traceback.format_exc()
         with open(self.filepath, "a") as f:
             f.write("\n" + time + "Error -------------------------\n"+ text + "\n")

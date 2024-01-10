@@ -28,7 +28,7 @@ import vonage
 
 class Logging:
     def __init__(self):
-        self.filepath = os.path.join("C:\\Users\\c7441354\\Documents\\Ursulinen\\Data_airport\\logging", "logging_weather_"+datetime.datetime.now().strftime("%Y_%m_%d-%H-%M") + ".txt")
+        self.filepath = os.path.join("D:\\Uniarbeit 23_11_09\\data\\Data_airport\\Data_airport\\logging", "logging_weather_"+datetime.datetime.now().strftime("%Y_%m_%d-%H-%M") + ".txt")
         print("Logging to ", self.filepath)
         with open(self.filepath, "a") as f:
             f.write(f"-----Logging----- starting from: {datetime.datetime.now()}" )
