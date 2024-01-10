@@ -59,7 +59,6 @@ class Microphone():
         print(f"Saving every second in {self.file_ndatapoints} seconds files at {self.thisfile_location}")
 
 
-
         try:
             self.stream = sd.InputStream(
                 samplerate=44100,
@@ -77,8 +76,8 @@ class Microphone():
         self.nr_downloads = 0
 
         print("I opened Microphone")
-    def restart_stream(self):
-        print("Restart Stream Microphone")
+    def restart_stream(self,logging):
+        logging.save_logging("Restart Stream Microphone")
         self.stream.stop()
         self.stream = sd.InputStream(
             samplerate=44100,
@@ -102,7 +101,7 @@ class Microphone():
             except:
                 try:
                     logging.give_error("Error with getting one sec amplitude, try to reopen stream")
-                    self.restart_stream()
+                    self.restart_stream(logging)
                 except:
                     logging.give_error("Error with getting one sec amplitude, try to reopen stream")
 
