@@ -28,19 +28,20 @@ import vonage
 
 class Logging:
     def __init__(self):
-        self.filepath = os.path.join("D:\\Uniarbeit 23_11_09\\data\\Data_airport\\Data_airport\\logging", "logging_weather_"+datetime.datetime.now().strftime("%Y_%m_%d-%H-%M") + ".txt")
+        self.filepath = os.path.join("C:\\Users\\c7441354\\Documents\\Ursulinen\\Data_airport\\logging", "logging_weather_"+datetime.datetime.now().strftime("%Y_%m_%d-%H-%M") + ".txt")
         print("Logging to ", self.filepath)
         with open(self.filepath, "a") as f:
             f.write(f"-----Logging----- starting from: {datetime.datetime.now()}" )
     def save_logging(self, text):
         print(text)
-        time =datetime.datetime.now().strftime("%Y-%M-%D_%H:%M:%S")
+        time =datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
         with open(self.filepath, "a") as f:
             f.write("\n" + time +" "+ text)
     def give_error(self, text):
-        print(f"Error: {text}")
-        time =datetime.datetime.now().strftime("%Y-%M-%D_%H:%M:%S")
+        time =datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
         stack_trace = traceback.format_exc()
+        print(f"Error: {text}")
+        print(stack_trace)
         with open(self.filepath, "a") as f:
             f.write("\n" + time + "Error -------------------------\n"+ str(text) + "\n")
             f.write(stack_trace)
@@ -51,7 +52,7 @@ logging = Logging()
 class Weatherdata():
     def __init__(self):
         # Set the absolute path to chromedriver
-        self.service = Service(r"C:\Users\c7441354\PycharmProjects\Ursulinen_read_in_PC\chromedriver_win32\chromedriver19.exe")
+        self.service = Service(r"C:\Users\c7441354\PycharmProjects\Ursulinen_read_in_PC\chromedriver_win32\chromedriver23.exe")
         self.options = webdriver.ChromeOptions()
         # driver = webdriver.Chrome(service=service, options=options)
         # self.chromedrive_path = r"C:\Users\peaq\AppData\Local\Google\Chrome\chromedriver.exe"
@@ -143,18 +144,21 @@ class Weatherdata():
 
 try:
     weather = Weatherdata()
-    start_date = datetime.date(2023,11,1)
-    end_date = datetime.date(2023,11,22)
+    start_date = datetime.date(2024,3,19)
+    end_date = datetime.date(2024,3,24)
     if end_date:
         ddays = (end_date-start_date).days
     else:
         ddays = 5
     # Create a list of datetime.date objects for the last week
     dates_to_load = [start_date + datetime.timedelta(days=x) for x in range(ddays)]
+    print(f"Scraping weather data for days {dates_to_load}")
+    dates_to_load = [datetime.date(2024,3,24)]
     for date in dates_to_load:
         data = weather.get_data(date)
         path_dir = "C:\\Users\\c7441354\\Documents\\Ursulinen\\Data_airport\\weather"
-        path_date = os.path.join(path_dir,date.strftime("%Y-%m-%d")+"_weather_data.csv")
+        path_date = os.path.join(path_dir,date.strftime("%Y-%m-%d")+"_weather_data_UTC.csv")
+        print(f"data: {data}")
         data.to_csv(path_date)
         logging.save_logging(f"Saved the loaded data to {path_date}")
 except Exception as error:

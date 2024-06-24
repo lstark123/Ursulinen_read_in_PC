@@ -180,26 +180,43 @@ class Flightdata():
         return flight_movements
 
 
-class TimeAxisItem(pg.AxisItem):
-    def tickStrings(self, values, scale, spacing):
-        return [dt.fromtimestamp(value) for value in values]
+
 
 class MainPlot(pg.PlotWidget):
-    def __init__(self, *args, **kwargs):
-        super(MainPlot, self).__init__(*args, **kwargs)
+    def __init__(self, *args, xaxislabel = "",yaxislabelleft = "", yaxislabelright = "",labelleft ="", labelright="",penleft= "", penright = "", **kwargs):
+        super(MainPlot, self).__init__(*args, axisItems = {'bottom': pg.DateAxisItem()}, **kwargs)
         self.setBackground("w")
         self.showGrid(x=True, y=True)
 
-        self.showAxis('right')
-        self.vb2 = pg.ViewBox()
-        self.plotItem.scene().addItem(self.vb2)
-        self.getAxis('right').linkToView(self.vb2)
-        self.vb2.setXLink(self)
-        self.getAxis('right').setLabel('axis2', color='#0000ff')
+        self.axisItems = {'bottom': pg.DateAxisItem()}
+        self.getAxis('left').setLabel(yaxislabelleft,**{'font-size': '20pt'})
+        self.getAxis('bottom').setLabel(xaxislabel, **{'font-size': '20pt'})
+        self.legend = pg.LegendItem(labelTextSize = '14pt', offset=(60,10))
+        self.legend.setParentItem(self.graphicsItem())
 
-        self.updateViews()
+        lablecurveleft = pg.PlotCurveItem(pen=penleft)
+        self.legend.addItem(lablecurveleft, labelleft)
 
-        self.plotItem.vb.sigResized.connect(self.updateViews)
+        if yaxislabelright:
+            self.showAxis('right')
+            self.vb2 = pg.ViewBox()
+            self.plotItem.scene().addItem(self.vb2)
+            self.getAxis('right').linkToView(self.vb2)
+            self.vb2.setXLink(self)
+            labelcurveright = pg.PlotCurveItem(pen=penright)
+
+            self.secondary_legend = pg.LegendItem(labelTextSize = '14pt', offset=(-60,10))
+            self.secondary_legend.setParentItem(self.getAxis('right'))
+            self.secondary_legend.addItem(labelcurveright, labelright)
+
+            self.getAxis('right').setLabel(yaxislabelright, **{'font-size': '20pt'})
+
+            self.updateViews()
+
+            self.plotItem.vb.sigResized.connect(self.updateViews)
+
+
+        # self.vb2.addLegend(**{'font-size': '14pt'})
 
     def updateViews(self):
         self.vb2.setGeometry(self.plotItem.vb.sceneBoundingRect())
@@ -242,8 +259,21 @@ class MainWindow(QMainWindow):
         mainlayout = QVBoxLayout()
 
         pg.setConfigOptions(antialias=True)
-        self.graphWidget = MainPlot()
-        mainlayout.addWidget(self.graphWidget)
+        self.partectorplot = MainPlot(xaxislabel="",
+                                      yaxislabelleft= 'Anzahlkonzehtration [cm<sup>-3</sup>]',
+                                      yaxislabelright='Durchmesser Teilchen [nm]',
+                                      labelleft='Anzahlkonzentration Partikel',
+                                      labelright='Durchschnittlicher Durchmesser Partikel',
+                                      penleft=pg.mkPen((13, 77, 181),width=1.5),
+                                      penright=pg.mkPen((250, 163, 15), width=1.5)
+        )
+        self.microplot = MainPlot(xaxislabel="Lokale Zeit",
+                                  yaxislabelleft="Lautstärke am Dach [dB]",
+                                  labelleft= "Lautstärke",
+                                  penleft=pg.mkPen((224, 49, 18), width=1.5))
+        self.partectorplot.setXLink(self.microplot)
+        mainlayout.addWidget(self.partectorplot)
+        mainlayout.addWidget(self.microplot)
 
         self.timewindow_combobox = QComboBox()
         self.timewindow_combobox.addItems(["1 h","30min","5 min","1 min"])
@@ -274,40 +304,36 @@ class MainWindow(QMainWindow):
             self.secondsback = 60
         print(f"plotte jetzt {self.secondsback}s zurück")
 
-    def remove_all_plot_items(self,Graphwidget):
-        for item in Graphwidget.allChildItems():
-            Graphwidget.removeItem(item)
+
 
 
 
     def update_plot(self):
-        # self.remove_all_plot_items(self.graphWidget)
-        self.graphWidget.clear()
+        self.partectorplot.clear()
+        self.microplot.clear()
+
         part_numb = self.part.data.particle_number_concentration.values
         part_diam = self.part.data.average_particle_diameter.values
         part_time = self.part.data.Time_UNIX.values
-        self.graphWidget.plot(part_time,part_numb,pen=pg.mkPen((13, 77, 181), width=1.5))
+        numbercurve = pg.PlotCurveItem(part_time,part_numb,pen=pg.mkPen((13, 77, 181), width=1.5))
+        diametercurve = pg.PlotCurveItem(part_time,part_diam,pen=pg.mkPen((250, 163, 15), width=1.5))
+        self.partectorplot.addItem(numbercurve)
+        self.partectorplot.vb2.addItem(diametercurve)
+
 
         time_mic = self.mic.data.Time_UNIX.values
         ampl = self.mic.data.Amplitude.values
-        miccurve = pg.PlotCurveItem(time_mic, ampl,pen=pg.mkPen((224, 49, 18), width=1.5))
-        self.graphWidget.vb2.addItem(miccurve)
-        diametercurve = pg.PlotCurveItem(part_time,part_diam,pen=pg.mkPen((250, 163, 15), width=1.5))
-        self.graphWidget.vb2.addItem(diametercurve)
+        miccurve = pg.PlotCurveItem(time_mic, ampl,pen=pg.mkPen((224, 49, 18), width=1.5), name="Lautstärke am Dach")
+        self.microplot.addItem(miccurve)
+
         y_min_ax1 = 0
         y_max_ax1 = np.max(part_numb)*1.1
-        y_min_ax2 = 0
-        y_max_ax2 = np.max(ampl)*1.1
-        x_min = time_mic[-1] - self.secondsback
-        x_max = time_mic[-1] + self.secondsback/4
-        self.graphWidget.setYRange(y_min_ax1, y_max_ax1)
-        self.graphWidget.setXRange(x_min, x_max)
+        x_min = dt.datetime.now().timestamp() - self.secondsback
+        x_max = dt.datetime.now().timestamp() + self.secondsback/4
 
         # vlines for flights
         self.flight.vlines = {}
-        print(int(x_min),int(x_max))
         selected_flight_data = self.flight.data[(self.flight.data.time_best_UNIX >x_min) & (self.flight.data.time_best_UNIX <x_max)]
-        print(selected_flight_data)
         for arrdep,color,vonnach  in zip(["arrival", "departure"],["r","b"],["von","nach"]):
             arrdep_data = selected_flight_data[selected_flight_data.arrival_departure == arrdep]
             for time_index, row in arrdep_data.iterrows():
@@ -322,7 +348,16 @@ class MainWindow(QMainWindow):
                 vline = pg.InfiniteLine(pos = best_time, angle = 90, movable= False,pen=pg.mkPen(color, width=2), label = label,labelOpts= labelOpts)
                 vline.label.setFont(QFont('Arial', 15))
 
-                self.graphWidget.addItem(vline)
+                self.microplot.addItem(vline)
+                self.partectorplot.addItem(vline)
+
+
+
+        self.partectorplot.setYRange(y_min_ax1, y_max_ax1)
+        self.partectorplot.setXRange(x_min, x_max)
+
+        self.microplot.setXRange(x_min, x_max)
+
 
 
 def main():

@@ -31,13 +31,14 @@ class Logging:
             f.write(f"-----Logging----- starting from: {datetime.datetime.now()}" )
     def save_logging(self, text):
         print(text)
-        time =datetime.datetime.now().strftime("%Y-%M-%D_%H:%M:%S")
+        time =datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
         with open(self.filepath, "a") as f:
             f.write("\n" + time +" "+ text)
-    def give_error(self, text):
-        print(f"Error: {text}")
-        time =datetime.datetime.now().strftime("%Y-%M-%D_%H:%M:%S")
+    def give_error(self, text = ""):
+        time =datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
         stack_trace = traceback.format_exc()
+        print(f"Error: {text}")
+        print(stack_trace)
         with open(self.filepath, "a") as f:
             f.write("\n" + time + "Error -------------------------\n"+ text + "\n")
             f.write(stack_trace)
@@ -48,7 +49,7 @@ logging = Logging()
 class Weatherdata():
     def __init__(self):
         # Set the absolute path to chromedriver
-        self.service = Service(r"C:\Users\c7441354\PycharmProjects\Ursulinen_read_in_PC\chromedriver_win32\chromedriver19.exe")
+        self.service = Service(r"C:\Users\c7441354\PycharmProjects\Ursulinen_read_in_PC\chromedriver_win32\chromedriver23.exe")
         self.options = webdriver.ChromeOptions()
         # driver = webdriver.Chrome(service=service, options=options)
         # self.chromedrive_path = r"C:\Users\peaq\AppData\Local\Google\Chrome\chromedriver.exe"
@@ -155,6 +156,7 @@ def scheduled_task():
         data = weather.get_data(date_to_load)
         path_dir = "C:\\Users\\c7441354\\Documents\\Ursulinen\\Data_airport\\weather"
         path_date = os.path.join(path_dir, date_to_load.strftime("%Y-%m-%d") + "_weather_data_UTC.csv")
+        print(f"data: {data}")
         data.to_csv(path_date)
         logging.save_logging(f"Saved the loaded data to {path_date}")
     except Exception as error:
