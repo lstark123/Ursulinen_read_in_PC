@@ -45,15 +45,15 @@ def main():
     # serial_number = "8278"
     serial_number = "8300"
     partector_savepath = "C:\\Users\\c7441354\\Documents\\Ursulinen\\Data_airport\\partector"
-    start_date = datetime.date(2024,2,3)
-    end_date = datetime.date(2024,2,14)
+    start_date = datetime.date(2024,6,20)
+    end_date = datetime.date(2024,6,25)
     if end_date:
         ddays = (end_date-start_date).days
     else:
         ddays = 5
     # Create a list of datetime.date objects for the last week
     dates_to_load = [start_date + datetime.timedelta(days=x) for x in range(ddays)]
-    dates_to_load = [datetime.date(2024,2,22)]
+    #dates_to_load = [datetime.date(2024,2,22)]
     print(f"Scraping partector for days {dates_to_load}")
 
     for date_to_load in dates_to_load:

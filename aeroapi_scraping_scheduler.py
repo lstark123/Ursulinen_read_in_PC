@@ -28,7 +28,7 @@ def main():
 def run_scheduled():
     all_data_this_date = {}
     all_data_this_date["aeroapi"] = ab.get_flightdata_aeroapi_and_save(datetime.date.today())
-    all_data_this_date["flightradar"] = ab.get_flightdata_flightradar24_and_save()
+    #all_data_this_date["flightradar"] = ab.get_flightdata_flightradar24_and_save()
     all_data_this_date["tracks"] = ab.get_tracks_of_flights_and_save(all_data_this_date["aeroapi"])
 
 

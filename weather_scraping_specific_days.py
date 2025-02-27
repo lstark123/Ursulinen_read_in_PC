@@ -52,7 +52,7 @@ logging = Logging()
 class Weatherdata():
     def __init__(self):
         # Set the absolute path to chromedriver
-        self.service = Service(r"C:\Users\c7441354\PycharmProjects\Ursulinen_read_in_PC\chromedriver_win32\chromedriver23.exe")
+        self.service = Service(r"C:\Users\c7441354\PycharmProjects\Ursulinen_read_in_PC\chromedriver_win\chromedriver_133.exe")
         self.options = webdriver.ChromeOptions()
         # driver = webdriver.Chrome(service=service, options=options)
         # self.chromedrive_path = r"C:\Users\peaq\AppData\Local\Google\Chrome\chromedriver.exe"
@@ -144,8 +144,8 @@ class Weatherdata():
 
 try:
     weather = Weatherdata()
-    start_date = datetime.date(2024,3,19)
-    end_date = datetime.date(2024,3,24)
+    start_date = datetime.date(2024,7,4)
+    end_date = datetime.date(2025,2,26)
     if end_date:
         ddays = (end_date-start_date).days
     else:
@@ -153,13 +153,16 @@ try:
     # Create a list of datetime.date objects for the last week
     dates_to_load = [start_date + datetime.timedelta(days=x) for x in range(ddays)]
     print(f"Scraping weather data for days {dates_to_load}")
-    dates_to_load = [datetime.date(2024,3,24)]
+    #dates_to_load = [datetime.date(2024,10,24)]
     for date in dates_to_load:
-        data = weather.get_data(date)
-        path_dir = "C:\\Users\\c7441354\\Documents\\Ursulinen\\Data_airport\\weather"
-        path_date = os.path.join(path_dir,date.strftime("%Y-%m-%d")+"_weather_data_UTC.csv")
-        print(f"data: {data}")
-        data.to_csv(path_date)
-        logging.save_logging(f"Saved the loaded data to {path_date}")
+        try:
+            data = weather.get_data(date)
+            path_dir = "C:\\Users\\c7441354\\Documents\\Ursulinen\\Data_airport\\weather"
+            path_date = os.path.join(path_dir,date.strftime("%Y-%m-%d")+"_weather_data_UTC.csv")
+            print(f"data: {data}")
+            data.to_csv(path_date)
+            logging.save_logging(f"Saved the loaded data to {path_date}")
+        except Exception as error:
+            logging.give_error(error)
 except Exception as error:
     logging.give_error(error)

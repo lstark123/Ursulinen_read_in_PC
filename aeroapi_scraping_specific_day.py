@@ -12,12 +12,12 @@ import datetime
 
 def main():
     ab.logging.save_logging(f"Start loading in flights of the day at {datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ')}")
-    start_date = datetime.date(2024,5,4)
-    end_date = datetime.date(2024,5,12)
+    start_date = datetime.date(2024,10,7)
+    end_date = datetime.date(2024,10,15)
     if end_date:
         ddays = (end_date-start_date).days
     else:
-        ddays = 5
+        ddays =5
     # Create a list of datetime.date objects for the last week
     dates_to_load = [start_date + datetime.timedelta(days=x) for x in range(ddays)]
     # dates_to_load = [datetime.date(2024,5,10)]

@@ -49,7 +49,7 @@ logging = Logging()
 class Weatherdata():
     def __init__(self):
         # Set the absolute path to chromedriver
-        self.service = Service(r"C:\Users\c7441354\PycharmProjects\Ursulinen_read_in_PC\chromedriver_win32\chromedriver23.exe")
+        self.service = Service(r"C:\Users\c7441354\PycharmProjects\Ursulinen_read_in_PC\chromedriver_win\chromedriver_133.exe")
         self.options = webdriver.ChromeOptions()
         # driver = webdriver.Chrome(service=service, options=options)
         # self.chromedrive_path = r"C:\Users\peaq\AppData\Local\Google\Chrome\chromedriver.exe"
@@ -65,7 +65,7 @@ class Weatherdata():
 
     def get_data(self,date_to_load_weatherdata_from):
         global logging
-        logging.save_logging(f"Start scraping data for day {date_to_load_weatherdata_from}")
+        logging.save_logging(f"Start scraping weather data for day {date_to_load_weatherdata_from}")
         station = "IINNSB49"
         date = date_to_load_weatherdata_from.strftime("%Y-%m-%d")
         # Render the url and open the page source as BS object

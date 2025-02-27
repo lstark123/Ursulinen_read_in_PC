@@ -46,7 +46,7 @@ def main():
     serial_number = "8300"
     logging = Logging()
     partector_savepath = "C:\\Users\\c7441354\\Documents\\Ursulinen\\Data_airport\\partector"
-    logging.save_logging(f"Start loading in flights of the day at {datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ')}")
+    logging.save_logging(f"Start loading in partector data of the day at {datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ')}")
 
     def load_part_data_of_day():
         dateyesterday = datetime.date.today() - datetime.timedelta(days=1)

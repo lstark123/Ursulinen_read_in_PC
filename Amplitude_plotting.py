@@ -74,13 +74,13 @@ class Microphone():
 
         time_now = dt.datetime.now()
         lasttwohoursfiles = all_files_mic[datetime_files > time_now - dt.timedelta(hours=2)]
-        print(f"Try do load data from {lasttwohoursfiles}")
+        #print(f"Try do load data from {lasttwohoursfiles}")
         for fp in lasttwohoursfiles:
             df = pd.read_csv(fp,index_col = 0)
             df = df.rolling(5).mean().dropna()
             df["Time"] = pd.to_datetime(df.Time_UNIX,unit = "s")
             self.data = pd.concat([self.data,df])
-        print(f"data in shape {self.data.shape}")
+        print(f"Load mic data in shape {self.data.shape}")
 class Flightdata():
     """
     The data is stored in self.data as an xarray with coordinates time, flightdata
@@ -177,6 +177,7 @@ class Flightdata():
         flight_movements = pd.concat([arrivals,departures])
         flight_movements = flight_movements.sort_index()
         self.data = flight_movements
+        print(f"Got flightdata from fr24: {self.data}")
         return flight_movements
 
 
@@ -225,14 +226,15 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Amplitude read in")
+        self.setWindowTitle("Amplitude Partector plotting")
         #self.save_location = str(QFileDialog.getExistingDirectory(self, "Wo speicher ich die Daten hin?"))
         self.save_location = "C:\\Users\\c7441354\\Documents\\Ursulinen\\Data_airport\\microphone"
         #self.save_location = "F:\\Uniarbeit\\data\\test"
         print(f"Get data from {self.save_location}")
 
-        self.reload_every_s = 4
-        self.file_ndatapoints = 60*60
+        self.reload_every_s = 15
+        self.reload_flight_every_cycle = 4*60*24
+        self.numcycles = 0
         self.secondsback = 60*60
         self.flight = Flightdata()
         self.mic = Microphone(self.save_location)
@@ -286,10 +288,14 @@ class MainWindow(QMainWindow):
 
     # here updating the plot in a seperate thread makes the program unstable!
     def timer_function(self):
-        print(f"thread {self.threadpool.activeThreadCount()}: replot.")
+        print(f"{dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: replot.")
+        if self.numcycles % self.reload_flight_every_cycle == 0:
+            self.flight.get_flightdata()
+            self.numcycles = 0
         self.mic.try_update_data()
         self.part.download_data_last_hour()
         self.update_plot()
+        self.numcycles += 1
 
 
     def timewindow_combobox_changed(self, index):
@@ -328,6 +334,8 @@ class MainWindow(QMainWindow):
 
         y_min_ax1 = 0
         y_max_ax1 = np.max(part_numb)*1.1
+        y_min_mic = 20
+        y_max_mic = np.max(ampl)*1.1
         x_min = dt.datetime.now().timestamp() - self.secondsback
         x_max = dt.datetime.now().timestamp() + self.secondsback/4
 
@@ -357,6 +365,7 @@ class MainWindow(QMainWindow):
         self.partectorplot.setXRange(x_min, x_max)
 
         self.microplot.setXRange(x_min, x_max)
+        self.microplot.setYRange(y_min_mic, y_max_mic)
 
 
 
